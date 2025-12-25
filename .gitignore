@@ -1,0 +1,10 @@
+# my local little testing script 
+build.sh
+
+.ninja_log
+build.ninja
+*.iso
+*.log
+build/
+.buildcache/
+deps/edk2-ovmf

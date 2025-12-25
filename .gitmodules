@@ -1,0 +1,16 @@
+[submodule "deps/limine"]
+	path = deps/limine
+	url = https://codeberg.org/Limine/Limine.git
+	branch = trunk
+[submodule "kernel/deps/freestnd-c-hdrs"]
+	path = kernel/deps/freestnd-c-hdrs
+	url = https://codeberg.org/OSDev/freestnd-c-hdrs-0bsd.git
+[submodule "kernel/deps/cc-runtime"]
+	path = kernel/deps/cc-runtime
+	url = https://codeberg.org/OSDev/cc-runtime.git
+[submodule "kernel/deps/limine-protocol"]
+	path = kernel/deps/limine-protocol
+	url = https://codeberg.org/Limine/limine-protocol.git
+[submodule "kernel/deps/flanterm"]
+	path = kernel/deps/flanterm
+	url = https://codeberg.org/Mintsuki/Flanterm
