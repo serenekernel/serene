@@ -38,14 +38,30 @@ end
 function run(build_info, run_info)
     local qemu_args = { 
         "-cdrom", "output-" .. (build_info.target_architecture or "x86_64") .. ".iso", 
-        "-m", "2G", 
-        "-M", "q35", 
-        "-debugcon", "stdio", 
         "-d", "int,cpu_reset", 
         "-D", "qemu_err.log", 
-        "--no-reboot", 
-        "--no-shutdown" 
+        "-m", "512M",
+        "--no-reboot",
+        "--no-shutdown"
     }
+
+    if build_info.target_architecture == "x86_64" then
+        table.insert(qemu_args, "-M")
+        table.insert(qemu_args, "q35")
+        table.insert(qemu_args, "-debugcon")
+        table.insert(qemu_args, "stdio")
+    else
+        table.insert(qemu_args, "-M")
+        table.insert(qemu_args, "virt")
+		table.insert(qemu_args, "-device")
+        table.insert(qemu_args, "ramfb")
+		table.insert(qemu_args, "-device")
+        table.insert(qemu_args, "qemu-xhci")
+		table.insert(qemu_args, "-device")
+        table.insert(qemu_args, "usb-kbd")
+		table.insert(qemu_args, "-device")
+        table.insert(qemu_args, "usb-mouse")
+    end
 
     if run_info.flags.pause then
         table.insert(qemu_args, "-S")
@@ -70,7 +86,15 @@ function run(build_info, run_info)
         table.insert(qemu_args, "-accel")
         table.insert(qemu_args, "tcg")
         table.insert(qemu_args, "-cpu")
-        table.insert(qemu_args, "qemu64,x2apic=" .. (run_info.flags.x2apic and "on" or "off"))
+        if build_info.target_architecture == "x86_64" then
+            table.insert(qemu_args, "qemu64,x2apic=" .. (run_info.flags.x2apic and "on" or "off"))
+        elseif build_info.target_architecture == "aarch64" then
+            table.insert(qemu_args, "cortex-a72")
+        elseif build_info.target_architecture == "riscv64" then
+            table.insert(qemu_args, "rv64")
+        elseif build_info.target_architecture == "loongarch64" then
+            table.insert(qemu_args, "la464")
+        end
     end
 
     return {
