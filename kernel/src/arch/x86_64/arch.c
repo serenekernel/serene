@@ -8,3 +8,7 @@ const char* arch_get_name(void) {
         __asm__ volatile("hlt");
     }
 }
+
+void arch_memory_barrier(void) {
+    __asm__ volatile("mfence" ::: "memory");
+}

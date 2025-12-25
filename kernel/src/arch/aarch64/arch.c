@@ -9,3 +9,7 @@ const char* arch_get_name(void) {
         __asm__ volatile("wfi");
     }
 }
+
+void arch_memory_barrier(void) {
+    __asm__ volatile("dmb ish" ::: "memory");
+}
