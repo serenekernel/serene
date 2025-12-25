@@ -1,6 +1,6 @@
-function bind_sources(module, sources)
-    for _, source in ipairs(sources) do
-        table.insert(module.info.sources, source)
+function table_extend(table1, table2)
+    for _, elem in ipairs(table2) do
+        table.insert(table1, elem)
     end
 end
 
@@ -36,6 +36,13 @@ function tbl_tostring(tbl, indent)
 end
 
 function build(build_info)
+    local sources = glob("kernel/src/**/*.c", "kernel/src/arch/**/*.c")
+    table_extend(sources, glob("kernel/deps/flanterm/src/**/*.c"))
+    table_extend(sources, glob("kernel/src/arch/" .. (build_info.target_architecture or "x86_64") .. "/**/*.c"))
+    if build_info.target_architecture == "x86_64" then
+        table_extend(sources, glob("kernel/src/arch/x86_64/**/*.asm"))
+    end
+    print(tbl_tostring(sources, 0))
     local kernel_module = {
         name = "kernel",
         module_type = "executable",
@@ -43,19 +50,15 @@ function build(build_info)
 
         info = {
             output = "kernel-" .. (build_info.target_architecture or "x86_64"),
-            sources = {
-                "kernel/src/main.c",
-                "kernel/src/common/*.c",
-                "kernel/deps/flanterm/src/**/*.c"
-            },
-            
+            sources = sources,
+            gen_deps = true,
             c_compiler_binary = "",
             ld_binary = "",
 
             c_flags = {
                 "-Wall",
                 "-Wextra",
-                "-Werror",
+                -- "-Werror",
                 "-std=gnu23",
                 "-nostdinc",
                 "-ffreestanding",
@@ -79,6 +82,12 @@ function build(build_info)
                 "-MMD",
                 "-MP"
             },
+            asm_flags = {
+                "-f elf64",
+                "-g",
+                "-Wall",
+                "-F dwarf"
+            },
             ld_flags = {
                 "-nostdlib",
                 "-static", 
@@ -96,6 +105,10 @@ function build(build_info)
         build_info.target_compiler = "clang"
     end
 
+    if build_info.target_architecture == "x86_64" then
+        kernel_module.info.asm_binary = "nasm"
+    end
+
     if build_info.target_compiler == "gcc" then
         kernel_module.info.c_compiler_binary = build_info.target_architecture .. "-elf-gcc"
         kernel_module.info.ld_binary         = build_info.target_architecture .. "-elf-ld"
@@ -108,29 +121,13 @@ function build(build_info)
     end
 
     if build_info.target_architecture == "x86_64" then
-        kernel_module.info.sources = {
-            "kernel/src/x86_64/*.c",
-            table.unpack(kernel_module.info.sources)
-        }
-        kernel_module.info.c_flags = { "-I kernel/include/x86_64", table.unpack(kernel_module.info.c_flags) }
+        kernel_module.info.c_flags = { "-D__ARCH_X86_64__", table.unpack(kernel_module.info.c_flags) }
     elseif build_info.target_architecture == "aarch64" then
-        kernel_module.info.sources = {
-            "kernel/src/aarch64/*.c",
-            table.unpack(kernel_module.info.sources)
-        }   
-        kernel_module.info.c_flags = { "-I kernel/include/aarch64", table.unpack(kernel_module.info.c_flags) }
+        kernel_module.info.c_flags = { "-D__ARCH_AARCH64__", table.unpack(kernel_module.info.c_flags) }
     elseif build_info.target_architecture == "riscv64" then
-        kernel_module.info.sources = {
-            "kernel/src/riscv64/*.c",
-            table.unpack(kernel_module.info.sources)
-        }    
-        kernel_module.info.c_flags = { "-I kernel/include/riscv64", table.unpack(kernel_module.info.c_flags) }
+        kernel_module.info.c_flags = { "-D__ARCH_RISCV64__", table.unpack(kernel_module.info.c_flags) }
     elseif build_info.target_architecture == "loongarch64" then
-        kernel_module.info.sources = {
-            "kernel/src/loongarch64/*.c",
-            table.unpack(kernel_module.info.sources)
-        }
-        kernel_module.info.c_flags = { "-I kernel/include/loongarch64", table.unpack(kernel_module.info.c_flags) }
+        kernel_module.info.c_flags = { "-D__ARCH_LOONGARCH64__", table.unpack(kernel_module.info.c_flags) }
     end
 
     local arch_flags = {
@@ -160,8 +157,8 @@ function build(build_info)
         table.insert(kernel_module.info.ld_flags, flag)
     end
     
-    print("Built kernel module:", kernel_module.name)
-    print(tbl_tostring(kernel_module, 0))
+    -- print("Built kernel module:", kernel_module.name)
+    -- print(tbl_tostring(kernel_module, 0))
 
     return kernel_module
 end

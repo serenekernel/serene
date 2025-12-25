@@ -2,6 +2,7 @@
 build.sh
 
 .ninja_log
+.ninja_deps
 build.ninja
 *.iso
 *.log

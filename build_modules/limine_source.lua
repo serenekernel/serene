@@ -31,13 +31,22 @@ function tbl_tostring(tbl, indent)
 end
 
 function build(build_info)
+    local HOST_CC = "cc"
+    local HOST_CFLAGS = "-g -O2 -pipe"
+    local HOST_CPPFLAGS = ""
+    local HOST_LDFLAGS = ""
+    local HOST_LIBS = ""
+    
+    local configuration_string = "CC=\"" .. HOST_CC .. "\" CFLAGS=\"" .. HOST_CFLAGS .. "\" CPPFLAGS=\"" .. HOST_CPPFLAGS .. "\" LDFLAGS=\"" .. HOST_LDFLAGS .. "\" LIBS=\"" .. HOST_LIBS .. "\""
     local module = {
         name = "limine",
         module_type = "custom",
         info = {
             commands = {
                 "cd deps/limine",
-                "make"
+                "./bootstrap",
+                configuration_string .. " ./configure --enable-bios-cd --enable-uefi-cd --enable-uefi-x86_64 --enable-uefi-aarch64 --enable-uefi-loongarch64 --enable-uefi-riscv64",
+                "make -j8 " .. configuration_string
             },
             run_mode = "only_once",
         }

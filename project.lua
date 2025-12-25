@@ -45,8 +45,13 @@ function build(build_info)
             "build_modules/limine.lua",
             "build_modules/make_iso.lua" 
         },
+        info = {
+            run_targets = {
+                "build_modules/qemu.lua"
+            }
+        }
     }
-    print("Built module:", module.name)
-    print(tbl_tostring(module, 0))
+    -- print("Built module:", module.name)
+    -- print(tbl_tostring(module, 0))
     return module
 end

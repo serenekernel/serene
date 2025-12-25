@@ -1,7 +1,7 @@
 [submodule "deps/limine"]
 	path = deps/limine
 	url = https://codeberg.org/Limine/Limine.git
-	branch = trunk
+	branch = v10.x-binary
 [submodule "kernel/deps/freestnd-c-hdrs"]
 	path = kernel/deps/freestnd-c-hdrs
 	url = https://codeberg.org/OSDev/freestnd-c-hdrs-0bsd.git
