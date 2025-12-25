@@ -33,10 +33,10 @@ end
 function build(build_info)
     local arch = build_info.target_architecture or "x86_64"
     local xorriso_command = {
-        x86_64 = "xorriso -as mkisofs -R -r -J -b boot/limine/limine-bios-cd.bin -no-emul-boot -boot-load-size 4 -boot-info-table -hfsplus -apm-block-size 2048 --efi-boot boot/limine/limine-uefi-cd.bin -efi-boot-part --efi-boot-image --protective-msdos-label iso_root -o output-" .. arch .. ".iso",
-        aarch64 = "xorriso -as mkisofs -R -r -J -hfsplus -apm-block-size 2048 --efi-boot boot/limine/limine-uefi-cd.bin -efi-boot-part --efi-boot-image --protective-msdos-label iso_root -o output-" .. arch .. ".iso",
-        loongarch64 = "xorriso -as mkisofs -R -r -J -hfsplus -apm-block-size 2048 --efi-boot boot/limine/limine-uefi-cd.bin -efi-boot-part --efi-boot-image --protective-msdos-label iso_root -o output-" .. arch .. ".iso",
-        riscv64 = "xorriso -as mkisofs -R -r -J -hfsplus -apm-block-size 2048 --efi-boot boot/limine/limine-uefi-cd.bin -efi-boot-part --efi-boot-image --protective-msdos-label iso_root -o output-" .. arch .. ".iso"
+        x86_64 = "xorriso -as mkisofs -R -r -J -b boot/limine/limine-bios-cd.bin -no-emul-boot -boot-load-size 4 -boot-info-table -hfsplus -apm-block-size 2048 --efi-boot boot/limine/limine-uefi-cd.bin -efi-boot-part --efi-boot-image --protective-msdos-label iso_root -o build/output-" .. arch .. ".iso",
+        aarch64 = "xorriso -as mkisofs -R -r -J -hfsplus -apm-block-size 2048 --efi-boot boot/limine/limine-uefi-cd.bin -efi-boot-part --efi-boot-image --protective-msdos-label iso_root -o build/output-" .. arch .. ".iso",
+        loongarch64 = "xorriso -as mkisofs -R -r -J -hfsplus -apm-block-size 2048 --efi-boot boot/limine/limine-uefi-cd.bin -efi-boot-part --efi-boot-image --protective-msdos-label iso_root -o build/output-" .. arch .. ".iso",
+        riscv64 = "xorriso -as mkisofs -R -r -J -hfsplus -apm-block-size 2048 --efi-boot boot/limine/limine-uefi-cd.bin -efi-boot-part --efi-boot-image --protective-msdos-label iso_root -o build/output-" .. arch .. ".iso"
     }
     local module = {
         name = "make_iso",
@@ -56,7 +56,7 @@ function build(build_info)
                 "cp -v deps/limine/BOOTLOONGARCH64.EFI iso_root/EFI/BOOT/",
                 "cp -v deps/limine/BOOTRISCV64.EFI iso_root/EFI/BOOT/",
                 xorriso_command[arch],
-                "./deps/limine/limine bios-install output-" .. arch .. ".iso",
+                "./deps/limine/limine bios-install build/output-" .. arch .. ".iso",
                 "rm -rf iso_root"
             },
             run_mode = "rerun",

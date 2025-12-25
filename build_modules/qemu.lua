@@ -37,7 +37,7 @@ end
 
 function run(build_info, run_info)
     local qemu_args = { 
-        "-cdrom", "output-" .. (build_info.target_architecture or "x86_64") .. ".iso", 
+        "-cdrom", "build/output-" .. (build_info.target_architecture or "x86_64") .. ".iso", 
         "-d", "int,cpu_reset", 
         "-D", "qemu_err.log", 
         "-m", "512M",
