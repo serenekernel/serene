@@ -58,7 +58,7 @@ function build(build_info)
             c_flags = {
                 "-Wall",
                 "-Wextra",
-                -- "-Werror",
+                "-Werror",
                 "-std=gnu23",
                 "-nostdinc",
                 "-ffreestanding",
@@ -69,16 +69,17 @@ function build(build_info)
                 "-ffunction-sections",
                 "-fdata-sections",
                 "-g",
+                
                 "-pipe",
                 "-O2",
                 
                 "-fno-omit-frame-pointer",
                 "-mno-omit-leaf-frame-pointer",
                 
-                "-I kernel/include/",
-                "-I kernel/deps/limine-protocol/include",
-                "-I kernel/deps/flanterm/src",
-                "-isystem kernel/deps/freestnd-c-hdrs/include",
+                "-Ikernel/include/",
+                "-Ikernel/deps/limine-protocol/include",
+                "-Ikernel/deps/flanterm/src",
+                "-isystemkernel/deps/freestnd-c-hdrs/include",
                 "-MMD",
                 "-MP"
             },
