@@ -1,6 +1,3 @@
-# my local little testing script 
-build.sh
-
 .ninja_log
 .ninja_deps
 build.ninja
@@ -9,3 +6,5 @@ build.ninja
 build/
 .buildcache/
 deps/edk2-ovmf
+.cache
+compile_commands.json
