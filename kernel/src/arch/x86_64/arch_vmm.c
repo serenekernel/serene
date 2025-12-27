@@ -158,7 +158,7 @@ void vm_map_page(vm_allocator_t* allocator, virt_addr_t virt_addr, phys_addr_t p
     pt[(uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PT)] = page_entry;
 }
 
-void vm_update_page(vm_allocator_t* allocator, virt_addr_t virt_addr, vm_access_t access, vm_cache_t cache, vm_protection_flags_t protection) {
+void vm_reprotect_page(vm_allocator_t* allocator, virt_addr_t virt_addr, vm_access_t access, vm_cache_t cache, vm_protection_flags_t protection) {
     uint64_t imtermediate_flags = PAGE_PRESENT_BIT | PAGE_RW_BIT;
 
     if(access == VM_ACCESS_USER) { imtermediate_flags |= PAGE_USER_BIT; }
@@ -174,6 +174,7 @@ void vm_update_page(vm_allocator_t* allocator, virt_addr_t virt_addr, vm_access_
     uint64_t page_entry = (old_entry & PAGE_ADDRESS_MASK(PAGE_SIZE_SMALL)) | page_new_flags;
 
     pt[(uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PT)] = page_entry;
+    vm_flush_page_dispatch(virt_addr);
 }
 
 phys_addr_t vm_resolve(vm_allocator_t* allocator, virt_addr_t virt_addr) {
@@ -206,6 +207,7 @@ void vm_unmap_page(vm_allocator_t* allocator, virt_addr_t virt_addr) {
     if(pt == NULL) { return; }
 
     pt[(uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PT)] = 0;
+    vm_flush_page_dispatch(virt_addr);
 }
 
 

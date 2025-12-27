@@ -156,7 +156,7 @@ void vm_map_page(vm_allocator_t* allocator, virt_addr_t virt_addr, phys_addr_t p
     l3[(uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_L3)] = page_entry;
 }
 
-void vm_update_page(vm_allocator_t* allocator, virt_addr_t virt_addr, vm_access_t access, vm_cache_t cache, vm_protection_flags_t protection) {
+void vm_reprotect_page(vm_allocator_t* allocator, virt_addr_t virt_addr, vm_access_t access, vm_cache_t cache, vm_protection_flags_t protection) {
     uint64_t intermediate_flags = 0;
 
     phys_addr_t page_table_base = is_higher_half(virt_addr) ? allocator->kernel_paging_structures_base : allocator->paging_structures_base;
@@ -186,6 +186,7 @@ void vm_update_page(vm_allocator_t* allocator, virt_addr_t virt_addr, vm_access_
     if(!protection.global) { page_entry |= (1ULL << 11); }
 
     l3[(uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_L3)] = page_entry;
+    vm_flush_page_dispatch(virt_addr);
 }
 
 phys_addr_t vm_resolve(vm_allocator_t* allocator, virt_addr_t virt_addr) {
@@ -221,6 +222,7 @@ void vm_unmap_page(vm_allocator_t* allocator, virt_addr_t virt_addr) {
     if(l3 == NULL) { return; }
 
     l3[(uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_L3)] = 0;
+    vm_flush_page_dispatch(virt_addr);
 }
 
 void vm_flush_page_raw(virt_addr_t addr) {
