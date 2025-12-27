@@ -25,12 +25,13 @@ void vmm_init(vm_allocator_t* allocator, virt_addr_t start, virt_addr_t end) {
     allocator->start = start;
     allocator->end = end;
     allocator->vm_tree.root = nullptr;
+    allocator->paging_structures_base = 0;
     allocator->vm_tree.value_of_node = vm_value_of_node;
     allocator->vm_tree.length_of_node = vm_length_of_node;
 }
 
 virt_addr_t vmm_alloc(vm_allocator_t* allocator, size_t page_count) {
-    size_t total_size = page_count * DEFAULT_PAGE_SIZE;
+    size_t total_size = page_count * PAGE_SIZE_DEFAULT;
 
     virt_addr_t alloc_addr = rb_find_first_gap(&allocator->vm_tree, allocator->start, allocator->end, total_size);
     if(alloc_addr == 0) { return 0; }

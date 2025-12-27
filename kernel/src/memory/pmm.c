@@ -11,20 +11,6 @@ typedef struct pmm_node {
     struct pmm_node* next;
 } pmm_node_t;
 
-const char* limine_memmap_type_to_str(uint64_t type) {
-    switch(type) {
-        case LIMINE_MEMMAP_USABLE:                 return "usable";
-        case LIMINE_MEMMAP_RESERVED:               return "reserved";
-        case LIMINE_MEMMAP_ACPI_RECLAIMABLE:       return "acpireclaim";
-        case LIMINE_MEMMAP_ACPI_NVS:               return "acpinvs";
-        case LIMINE_MEMMAP_BAD_MEMORY:             return "badmem";
-        case LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE: return "ldr reclaim";
-        case LIMINE_MEMMAP_EXECUTABLE_AND_MODULES: return "exec & modules";
-        case LIMINE_MEMMAP_FRAMEBUFFER:            return "fb";
-        case LIMINE_MEMMAP_ACPI_TABLES:            return "acpitbl";
-        default:                                   return "unknown";
-    }
-}
 
 pmm_node_t* head = NULL;
 
@@ -48,10 +34,10 @@ void pmm_init() {
         printf("%s, 0x%016lx - 0x%016lx (%zu)\n", limine_memmap_type_to_str(entry->type), entry->base, entry->base + entry->length, entry->length);
 
         if(entry->type == LIMINE_MEMMAP_USABLE) {
-            phys_addr_t start = ALIGN_UP(entry->base, DEFAULT_PAGE_SIZE);
-            phys_addr_t end = ALIGN_DOWN(entry->base + entry->length, DEFAULT_PAGE_SIZE);
+            phys_addr_t start = ALIGN_UP(entry->base, PAGE_SIZE_DEFAULT);
+            phys_addr_t end = ALIGN_DOWN(entry->base + entry->length, PAGE_SIZE_DEFAULT);
 
-            for(phys_addr_t addr = start; addr < end; addr += DEFAULT_PAGE_SIZE) { pmm_free_page(addr); }
+            for(phys_addr_t addr = start; addr < end; addr += PAGE_SIZE_DEFAULT) { pmm_free_page(addr); }
         }
     }
 }
