@@ -17,12 +17,14 @@ typedef struct {
     rb_tree_t vm_tree;
 } vm_allocator_t;
 
+extern vm_allocator_t kernel_allocator;
+
 void vmm_init(vm_allocator_t* allocator, virt_addr_t start, virt_addr_t end);
 virt_addr_t vmm_alloc(vm_allocator_t* allocator, size_t page_count);
 void vmm_free(vm_allocator_t* allocator, virt_addr_t addr);
 
 void vm_map_page(vm_allocator_t* allocator, virt_addr_t virt_addr, phys_addr_t phys_addr, vm_access_t access, vm_cache_t cache, vm_protection_flags_t protection);
-void vm_update_page(vm_allocator_t* allocator, virt_addr_t virt_addr, vm_access_t access, vm_cache_t cache, vm_protection_flags_t protection);
+void vm_reprotect_page(vm_allocator_t* allocator, virt_addr_t virt_addr, vm_access_t access, vm_cache_t cache, vm_protection_flags_t protection);
 phys_addr_t vm_resolve(vm_allocator_t* allocator, virt_addr_t virt_addr);
 void vm_unmap_page(vm_allocator_t* allocator, virt_addr_t virt_addr);
 

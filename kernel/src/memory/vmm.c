@@ -5,6 +5,8 @@
 #include <common/requests.h>
 #include <memory/vmm.h>
 
+vm_allocator_t kernel_allocator;
+
 typedef struct {
     rb_node_t rb_node;
     uintptr_t base;
