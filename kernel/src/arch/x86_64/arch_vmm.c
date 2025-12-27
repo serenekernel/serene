@@ -102,7 +102,7 @@ uint64_t convert_access_flags(vm_access_t privilege) {
 
 uint64_t convert_cache_flags(vm_cache_t cache, page_size_t page_size) {
     switch(cache) {
-        case VM_CACHE_NORMAL:        return 0;
+        case VM_CACHE_NORMAL:        return PAGE_WRITE_THROUGH_BIT;
         case VM_CACHE_DISABLE:       return PAGE_CACHE_DISABLE_BIT;
         case VM_CACHE_WRITE_THROUGH: return PAGE_WRITE_THROUGH_BIT;
         case VM_CACHE_WRITE_COMBINE: return PAGE_CACHE_WRITE_COMBINE(page_size);
@@ -148,7 +148,7 @@ void vm_map_page(vm_allocator_t* allocator, virt_addr_t virt_addr, phys_addr_t p
 
     if(access == VM_ACCESS_USER) { imtermediate_flags |= PAGE_USER_BIT; }
 
-    uint64_t* pml4 = (uint64_t*) phys_to_hhdm(allocator->paging_structures_base);
+    uint64_t* pml4 = (uint64_t*) phys_to_hhdm(allocator->kernel_paging_structures_base);
 
     uint64_t* pdpt = next_or_allocate(pml4, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PML4), imtermediate_flags);
     uint64_t* pd = next_or_allocate(pdpt, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PDPT), imtermediate_flags);
@@ -163,7 +163,7 @@ void vm_update_page(vm_allocator_t* allocator, virt_addr_t virt_addr, vm_access_
 
     if(access == VM_ACCESS_USER) { imtermediate_flags |= PAGE_USER_BIT; }
 
-    uint64_t* pml4 = (uint64_t*) phys_to_hhdm(allocator->paging_structures_base);
+    uint64_t* pml4 = (uint64_t*) phys_to_hhdm(allocator->kernel_paging_structures_base);
 
     uint64_t* pdpt = next_or_allocate(pml4, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PML4), imtermediate_flags);
     uint64_t* pd = next_or_allocate(pdpt, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PDPT), imtermediate_flags);
@@ -177,7 +177,7 @@ void vm_update_page(vm_allocator_t* allocator, virt_addr_t virt_addr, vm_access_
 }
 
 phys_addr_t vm_resolve(vm_allocator_t* allocator, virt_addr_t virt_addr) {
-    uint64_t* pml4 = (uint64_t*) phys_to_hhdm(allocator->paging_structures_base);
+    uint64_t* pml4 = (uint64_t*) phys_to_hhdm(allocator->kernel_paging_structures_base);
 
     uint64_t* pdpt = next_if_exists(pml4, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PML4));
     if(pdpt == NULL) { return 0; }
@@ -194,7 +194,7 @@ phys_addr_t vm_resolve(vm_allocator_t* allocator, virt_addr_t virt_addr) {
     return page_entry & SMALL_PAGE_ADDRESS_MASK;
 }
 void vm_unmap_page(vm_allocator_t* allocator, virt_addr_t virt_addr) {
-    uint64_t* pml4 = (uint64_t*) phys_to_hhdm(allocator->paging_structures_base);
+    uint64_t* pml4 = (uint64_t*) phys_to_hhdm(allocator->kernel_paging_structures_base);
 
     uint64_t* pdpt = next_if_exists(pml4, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PML4));
     if(pdpt == NULL) { return; }
@@ -275,12 +275,12 @@ inline void __setup_pat() {
 
 void vm_address_space_switch(vm_allocator_t* allocator) {
     arch_memory_barrier();
-    asm volatile("mov %0, %%cr3" ::"r"(allocator->paging_structures_base) : "memory");
+    asm volatile("mov %0, %%cr3" ::"r"(allocator->kernel_paging_structures_base) : "memory");
     arch_memory_barrier();
 }
 
 void vm_paging_bsp_init(vm_allocator_t* allocator) {
-    allocator->paging_structures_base = __alloc_entry();
+    allocator->kernel_paging_structures_base = __alloc_entry();
     __setup_pat();
 }
 

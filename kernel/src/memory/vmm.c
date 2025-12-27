@@ -25,7 +25,10 @@ void vmm_init(vm_allocator_t* allocator, virt_addr_t start, virt_addr_t end) {
     allocator->start = start;
     allocator->end = end;
     allocator->vm_tree.root = nullptr;
+#ifdef __ARCH_AARCH64__
     allocator->paging_structures_base = 0;
+#endif
+    allocator->kernel_paging_structures_base = 0;
     allocator->vm_tree.value_of_node = vm_value_of_node;
     allocator->vm_tree.length_of_node = vm_length_of_node;
 }

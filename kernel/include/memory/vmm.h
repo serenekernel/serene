@@ -7,9 +7,12 @@ typedef struct {
     virt_addr_t start;
     virt_addr_t end;
 
-    // @todo: I assume aarch64 uses phyiscal addresses for page tables
-    // even then we can just kinda cast that way and ignore it being "physical"
+#ifdef __ARCH_AARCH64__
+    // for the ttbr0_el1
     phys_addr_t paging_structures_base;
+#endif
+    // for the ttbr1_el1 or cr3 on x86
+    phys_addr_t kernel_paging_structures_base;
 
     rb_tree_t vm_tree;
 } vm_allocator_t;
