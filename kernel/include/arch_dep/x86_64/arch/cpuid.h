@@ -1,0 +1,102 @@
+#pragma once
+#include <stdbool.h>
+#include <stdint.h>
+
+enum {
+    CPUID_GET_FEATURES_ECX_SSE3 = 1 << 0,
+    CPUID_GET_FEATURES_ECX_PCLMUL = 1 << 1,
+    CPUID_GET_FEATURES_ECX_DTES64 = 1 << 2,
+    CPUID_GET_FEATURES_ECX_MONITOR = 1 << 3,
+    CPUID_GET_FEATURES_ECX_DS_CPL = 1 << 4,
+    CPUID_GET_FEATURES_ECX_VMX = 1 << 5,
+    CPUID_GET_FEATURES_ECX_SMX = 1 << 6,
+    CPUID_GET_FEATURES_ECX_EST = 1 << 7,
+    CPUID_GET_FEATURES_ECX_TM2 = 1 << 8,
+    CPUID_GET_FEATURES_ECX_SSSE3 = 1 << 9,
+    CPUID_GET_FEATURES_ECX_CID = 1 << 10,
+    CPUID_GET_FEATURES_ECX_SDBG = 1 << 11,
+    CPUID_GET_FEATURES_ECX_FMA = 1 << 12,
+    CPUID_GET_FEATURES_ECX_CX16 = 1 << 13,
+    CPUID_GET_FEATURES_ECX_XTPR = 1 << 14,
+    CPUID_GET_FEATURES_ECX_PDCM = 1 << 15,
+    CPUID_GET_FEATURES_ECX_PCID = 1 << 17,
+    CPUID_GET_FEATURES_ECX_DCA = 1 << 18,
+    CPUID_GET_FEATURES_ECX_SSE4_1 = 1 << 19,
+    CPUID_GET_FEATURES_ECX_SSE4_2 = 1 << 20,
+    CPUID_GET_FEATURES_ECX_X2APIC = 1 << 21,
+    CPUID_GET_FEATURES_ECX_MOVBE = 1 << 22,
+    CPUID_GET_FEATURES_ECX_POPCNT = 1 << 23,
+    CPUID_GET_FEATURES_ECX_TSC = 1 << 24,
+    CPUID_GET_FEATURES_ECX_AES = 1 << 25,
+    CPUID_GET_FEATURES_ECX_XSAVE = 1 << 26,
+    CPUID_GET_FEATURES_ECX_OSXSAVE = 1 << 27,
+    CPUID_GET_FEATURES_ECX_AVX = 1 << 28,
+    CPUID_GET_FEATURES_ECX_F16C = 1 << 29,
+    CPUID_GET_FEATURES_ECX_RDRAND = 1 << 30,
+    CPUID_GET_FEATURES_ECX_HYPERVISOR = 1 << 31,
+
+    CPUID_GET_FEATURES_EDX_FPU = 1 << 0,
+    CPUID_GET_FEATURES_EDX_VME = 1 << 1,
+    CPUID_GET_FEATURES_EDX_DE = 1 << 2,
+    CPUID_GET_FEATURES_EDX_PSE = 1 << 3,
+    CPUID_GET_FEATURES_EDX_TSC = 1 << 4,
+    CPUID_GET_FEATURES_EDX_MSR = 1 << 5,
+    CPUID_GET_FEATURES_EDX_PAE = 1 << 6,
+    CPUID_GET_FEATURES_EDX_MCE = 1 << 7,
+    CPUID_GET_FEATURES_EDX_CX8 = 1 << 8,
+    CPUID_GET_FEATURES_EDX_APIC = 1 << 9,
+    CPUID_GET_FEATURES_EDX_SEP = 1 << 11,
+    CPUID_GET_FEATURES_EDX_MTRR = 1 << 12,
+    CPUID_GET_FEATURES_EDX_PGE = 1 << 13,
+    CPUID_GET_FEATURES_EDX_MCA = 1 << 14,
+    CPUID_GET_FEATURES_EDX_CMOV = 1 << 15,
+    CPUID_GET_FEATURES_EDX_PAT = 1 << 16,
+    CPUID_GET_FEATURES_EDX_PSE36 = 1 << 17,
+    CPUID_GET_FEATURES_EDX_PSN = 1 << 18,
+    CPUID_GET_FEATURES_EDX_CLFLUSH = 1 << 19,
+    CPUID_GET_FEATURES_EDX_DS = 1 << 21,
+    CPUID_GET_FEATURES_EDX_ACPI = 1 << 22,
+    CPUID_GET_FEATURES_EDX_MMX = 1 << 23,
+    CPUID_GET_FEATURES_EDX_FXSR = 1 << 24,
+    CPUID_GET_FEATURES_EDX_SSE = 1 << 25,
+    CPUID_GET_FEATURES_EDX_SSE2 = 1 << 26,
+    CPUID_GET_FEATURES_EDX_SS = 1 << 27,
+    CPUID_GET_FEATURES_EDX_HTT = 1 << 28,
+    CPUID_GET_FEATURES_EDX_TM = 1 << 29,
+    CPUID_GET_FEATURES_EDX_IA64 = 1 << 30,
+    CPUID_GET_FEATURES_EDX_PBE = 1 << 31
+};
+
+enum {
+    CPUID_EXTENDED_PROCESSOR_INFO_EDX_SYSCALL = 1 << 11,
+    CPUID_EXTENDED_PROCESSOR_INFO_EDX_EXECUTE_DISABLE = 1 << 20,
+    CPUID_EXTENDED_PROCESSOR_INFO_EDX_1GB_PAGES = 1 << 26
+};
+
+typedef enum {
+    CPUID_VENDOR_ID = 0x0,
+    CPUID_GET_FEATURES = 0x1,
+    CPUID_EXTENDED_PROCESSOR_INFO = 0x80000001
+} cpuid_leaf_t;
+
+typedef enum {
+    CPUID_EAX = 0,
+    CPUID_EBX = 1,
+    CPUID_ECX = 2,
+    CPUID_EDX = 3
+} cpuid_reg_t;
+
+[[nodiscard]] inline uint32_t __cpuid(cpuid_leaf_t leaf, uint32_t subleaf, cpuid_reg_t reg) {
+    uint32_t eax, ebx, ecx, edx;
+    __asm__ volatile("xchgq  %%rbx, %q1\n" "cpuid\n" "xchgq  %%rbx,%q1" : "=a"(eax), "=r"(ebx), "=c"(ecx), "=d"(edx) : "0"(leaf), "2"(subleaf));
+
+    switch(reg) {
+        case CPUID_EAX: return eax;
+        case CPUID_EBX: return ebx;
+        case CPUID_ECX: return ecx;
+        case CPUID_EDX: return edx;
+    }
+    __builtin_unreachable();
+}
+
+void __cpuid_dump_info(void);
