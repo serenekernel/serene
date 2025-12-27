@@ -122,13 +122,13 @@ function build(build_info)
     end
 
     if build_info.target_architecture == "x86_64" then
-        kernel_module.info.c_flags = { "-D__ARCH_X86_64__", table.unpack(kernel_module.info.c_flags) }
+        kernel_module.info.c_flags = { "-D__ARCH_X86_64__", "-Ikernel/include/arch_dep/x86_64", table.unpack(kernel_module.info.c_flags) }
     elseif build_info.target_architecture == "aarch64" then
-        kernel_module.info.c_flags = { "-D__ARCH_AARCH64__", table.unpack(kernel_module.info.c_flags) }
+        kernel_module.info.c_flags = { "-D__ARCH_AARCH64__", "-Ikernel/include/arch_dep/aarch64", table.unpack(kernel_module.info.c_flags) }
     elseif build_info.target_architecture == "riscv64" then
-        kernel_module.info.c_flags = { "-D__ARCH_RISCV64__", table.unpack(kernel_module.info.c_flags) }
+        kernel_module.info.c_flags = { "-D__ARCH_RISCV64__", "-Ikernel/include/arch_dep/riscv64", table.unpack(kernel_module.info.c_flags) }
     elseif build_info.target_architecture == "loongarch64" then
-        kernel_module.info.c_flags = { "-D__ARCH_LOONGARCH64__", table.unpack(kernel_module.info.c_flags) }
+        kernel_module.info.c_flags = { "-D__ARCH_LOONGARCH64__", "-Ikernel/include/arch_dep/loongarch64", table.unpack(kernel_module.info.c_flags) }
     end
 
     local arch_flags = {
