@@ -19,14 +19,14 @@
 
 
 #ifdef __ARCH_X86_64__
-void sink_e9(char* c) {
+void sink_debug(char* c) {
     while(*c != '\0') {
         port_write_u8(0xe9, *c);
         c++;
     }
 }
 #else
-void sink_e9(char* c) {
+void sink_debug(char* c) {
     (void) c;
 }
 #endif
@@ -70,9 +70,7 @@ void term_init(void) {
         FLANTERM_FB_ROTATE_0
     );
 
-    if(ft_ctx == NULL) {
-        arch_die();
-    }
+    if(ft_ctx == NULL) { arch_die(); }
 }
 
 int snvprintf(char* buffer, size_t bufsz, const char* fmt, va_list val) {
@@ -91,10 +89,8 @@ int snprintf(char* buffer, size_t bufsz, const char* fmt, ...) {
 int vprintf(const char* fmt, va_list val) {
     char buffer[1024];
     const int rv = npf_vsnprintf(buffer, 1024, fmt, val);
-    sink_e9(buffer);
-    if(ft_ctx != NULL) {
-        sink_flanterm(buffer);
-    }
+    sink_debug(buffer);
+    if(ft_ctx != NULL) { sink_flanterm(buffer); }
     return rv;
 }
 
