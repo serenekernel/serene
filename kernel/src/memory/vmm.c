@@ -32,24 +32,16 @@ void vmm_init(vm_allocator_t* allocator, virt_addr_t start, virt_addr_t end) {
 virt_addr_t vmm_alloc(vm_allocator_t* allocator, size_t page_count) {
     size_t total_size = page_count * DEFAULT_PAGE_SIZE;
 
-    // Find first available gap using the rb_tree function
     virt_addr_t alloc_addr = rb_find_first_gap(&allocator->vm_tree, allocator->start, allocator->end, total_size);
-    if(alloc_addr == 0) {
-        return 0; // No suitable gap found
-    }
+    if(alloc_addr == 0) { return 0; }
 
-    // Allocate physical memory for the vm_node_t structure
     phys_addr_t node_phys = pmm_alloc_page();
-    if(node_phys == 0) {
-        return 0; // Out of physical memory
-    }
+    if(node_phys == 0) { return 0; }
 
-    // Convert physical address to virtual address using HHDM
     vm_node_t* new_node = (vm_node_t*) (node_phys + hhdm_request.response->offset);
     new_node->base = alloc_addr;
     new_node->size = total_size;
 
-    // Insert into the red-black tree
     rb_insert(&allocator->vm_tree, &new_node->rb_node);
 
     return alloc_addr;
