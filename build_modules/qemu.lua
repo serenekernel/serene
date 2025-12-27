@@ -42,7 +42,8 @@ function run(build_info, run_info)
         "-D", "qemu_err.log", 
         "-m", "512M",
         "--no-reboot",
-        "--no-shutdown"
+        "--no-shutdown",
+        "-s"
     }
 
     if build_info.target_architecture == "x86_64" then
