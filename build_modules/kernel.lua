@@ -77,6 +77,7 @@ function build(build_info)
                 "-mno-omit-leaf-frame-pointer",
                 
                 "-Ikernel/include/",
+                "-Ikernel/include/lib",
                 "-Ikernel/deps/limine-protocol/include",
                 "-Ikernel/deps/flanterm/src",
                 "-isystemkernel/deps/freestnd-c-hdrs/include",
