@@ -61,3 +61,46 @@ void vmm_free(vm_allocator_t* allocator, virt_addr_t addr) {
         pmm_free_page((phys_addr_t) vm_node - hhdm_request.response->offset);
     }
 }
+
+void vm_map_kernel() {
+    extern uint64_t kernel_start;
+    extern uint64_t kernel_end;
+
+    virt_addr_t start = ALIGN_DOWN((virt_addr_t) &kernel_start, 4096);
+    virt_addr_t end = ALIGN_UP((virt_addr_t) &kernel_end, 4096);
+
+    size_t kernel_page_count = ALIGN_UP((end - start), PAGE_SIZE_DEFAULT) / PAGE_SIZE_DEFAULT;
+    // kernel_mapping->virtual_base is the source virtual base (where kernel is currently linked),
+    // kernel_mapping->physical_base is the corresponding physical base. we map target virtual
+    // addresses (the kernel's higher-half addresses) to the physical frames.
+    printf("kernel_mapping.response->virtual_base=%p\n", kernel_mapping.response->virtual_base);
+    printf("kernel_mapping.response->physical_base=%p\n", kernel_mapping.response->physical_base);
+    printf("&kernel_start=%p &kernel_end=%p, kernel_page_count=%lu\n", &kernel_start, &kernel_end, kernel_page_count);
+
+    vm_map_pages_continuous(&kernel_allocator, kernel_mapping.response->virtual_base, kernel_mapping.response->physical_base, kernel_page_count, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, convert_vm_protection_basic(VM_PROTECTION_READ_WRITE_EXECUTE));
+
+    for(size_t i = 0; i < memmap_request.response->entry_count; i++) {
+        struct limine_memmap_entry* current = memmap_request.response->entries[i];
+
+        phys_addr_t phys_base = ALIGN_DOWN(current->base, 4096);
+        virt_addr_t virt_base = phys_base + hhdm_request.response->offset;
+        size_t page_count = ALIGN_UP(current->length, 4096) / 4096;
+
+        printf("0x%016llx -> 0x%016llx (0x%08llx | %s)", phys_base, virt_base, current->length, limine_memmap_type_to_str(current->type));
+        if(current->type == LIMINE_MEMMAP_USABLE || current->type == LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE || current->type == LIMINE_MEMMAP_EXECUTABLE_AND_MODULES || current->type == LIMINE_MEMMAP_FRAMEBUFFER ||
+           current->type == LIMINE_MEMMAP_ACPI_TABLES || current->type == LIMINE_MEMMAP_ACPI_RECLAIMABLE)
+        {
+            printf(" will be mapped\n");
+        } else {
+            printf(" will not be mapped\n");
+        }
+
+        if(current->type == LIMINE_MEMMAP_USABLE || current->type == LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE || current->type == LIMINE_MEMMAP_EXECUTABLE_AND_MODULES) {
+            vm_map_pages_continuous(&kernel_allocator, virt_base, phys_base, page_count, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, convert_vm_protection_basic(VM_PROTECTION_READ_WRITE));
+        } else if(current->type == LIMINE_MEMMAP_FRAMEBUFFER) {
+            vm_map_pages_continuous(&kernel_allocator, virt_base, phys_base, page_count, VM_ACCESS_KERNEL, VM_CACHE_WRITE_COMBINE, convert_vm_protection_basic(VM_PROTECTION_READ_WRITE));
+        } else if(current->type == LIMINE_MEMMAP_ACPI_RECLAIMABLE || current->type == LIMINE_MEMMAP_ACPI_TABLES) {
+            vm_map_pages_continuous(&kernel_allocator, virt_base, phys_base, page_count, VM_ACCESS_KERNEL, VM_CACHE_WRITE_THROUGH, convert_vm_protection_basic(VM_PROTECTION_READ_WRITE));
+        }
+    }
+}

@@ -105,6 +105,7 @@ phys_addr_t __alloc_entry() {
     phys_addr_t phys = pmm_alloc_page();
     virt_addr_t virt = phys_to_hhdm(phys);
     memset((void*) virt, 0, 4096);
+    __asm__ volatile("dsb ishst" ::: "memory");
     return phys;
 }
 
@@ -113,6 +114,7 @@ uint64_t* next_or_allocate(uint64_t* root, int idx, uint64_t flags) {
         phys_addr_t new_table_phys = __alloc_entry();
         // For intermediate levels (L0-L2), use table descriptor
         root[idx] = (new_table_phys & DESC_TABLE_ADDR_MASK) | DESC_TABLE | DESC_VALID | (flags & 0xfff);
+        __asm__ volatile("dsb ishst" ::: "memory");
     }
 
     phys_addr_t next_table_phys = root[idx] & DESC_TABLE_ADDR_MASK;
@@ -259,9 +261,11 @@ static inline void __setup_tcr() {
     tcr |= (3ULL << 28); // SH1: shareability for TTBR1 (inner shareable)
     tcr |= (2ULL << 30); // TG1: granule size for TTBR1 (4kb)
     tcr |= (5ULL << 32); // IPS: intermediate physical address size (48 bits - 0b101)
-
+    printf("about to load\n");
     __asm__ volatile("msr tcr_el1, %0" ::"r"(tcr));
+    printf("mbm\n");
     __asm__ volatile("isb" ::: "memory");
+    printf("tcr done\n");
 }
 
 void vm_address_space_switch(vm_allocator_t* allocator) {
@@ -276,7 +280,9 @@ void vm_paging_bsp_init(vm_allocator_t* allocator) {
     allocator->paging_structures_base = __alloc_entry();
     allocator->kernel_paging_structures_base = __alloc_entry();
     __setup_mair();
+    printf("mair done\n");
     __setup_tcr();
+    printf("tcr done\n");
 }
 
 void vm_paging_ap_init(vm_allocator_t* allocator) {

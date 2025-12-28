@@ -1,3 +1,9 @@
+#include <arch/gdt.h>
+#include <common/arch.h>
+#include <memory/pmm.h>
+#include <memory/vmm.h>
+#include <stdio.h>
+
 const char* arch_get_name(void) {
     return "x86_64";
 }
@@ -11,4 +17,32 @@ const char* arch_get_name(void) {
 
 void arch_memory_barrier(void) {
     __asm__ volatile("mfence" ::: "memory");
+}
+
+void arch_pause() {
+    __asm__ volatile("pause" ::: "memory");
+}
+
+void arch_init_bsp() {
+    pmm_init();
+    vmm_init(&kernel_allocator, 0xFFFF800000000000, 0xFFFF800040000000);
+    vm_paging_bsp_init(&kernel_allocator);
+
+    vm_map_kernel();
+    printf("we pray\n");
+    vm_address_space_switch(&kernel_allocator);
+    printf("we didn't die\n");
+
+    setup_gdt();
+    printf("GDT INIT OK!\n");
+    // We're done, just hang...
+}
+
+void arch_init_ap() {
+    vm_paging_ap_init(&kernel_allocator);
+    printf("ap paging pray\n");
+    vm_address_space_switch(&kernel_allocator);
+    printf("ap didn't kill itself\n");
+
+    setup_gdt();
 }

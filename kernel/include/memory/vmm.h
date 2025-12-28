@@ -37,3 +37,5 @@ void vm_paging_bsp_init(vm_allocator_t* allocator);
 void vm_paging_ap_init(vm_allocator_t* allocator);
 
 void vm_address_space_switch(vm_allocator_t* allocator);
+
+void vm_map_kernel();

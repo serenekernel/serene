@@ -73,7 +73,10 @@ void setup_gdt() {
 
 
     tss_entry_t* tss = (tss_entry_t*) tss_virt;
-    tss.ist[1] = gdt_set_tss(tss);
+    tss->ist[1] = ist1_stack_virt + PAGE_SIZE_DEFAULT;
+    tss->ist[2] = ist2_stack_virt + PAGE_SIZE_DEFAULT;
+    gdt_set_tss(tss);
+
     gdtr_t gdtr;
     gdtr.limit = sizeof(gdt) - 1;
     gdtr.base = (uint64_t) &gdt;
