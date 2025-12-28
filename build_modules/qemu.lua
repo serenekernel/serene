@@ -43,7 +43,8 @@ function run(build_info, run_info)
         "-m", "512M",
         "--no-reboot",
         "--no-shutdown",
-        "-s"
+        "-s",
+        "-smp", "cpus=2"
     }
 
     if build_info.target_architecture == "x86_64" then
