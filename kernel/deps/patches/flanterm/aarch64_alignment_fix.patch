@@ -1,0 +1,13 @@
+diff --git a/src/flanterm_backends/fb_private.h b/src/flanterm_backends/fb_private.h
+index dda1023..075574a 100644
+--- a/src/flanterm_backends/fb_private.h
++++ b/src/flanterm_backends/fb_private.h
+@@ -44,7 +44,7 @@ struct flanterm_fb_char {
+     uint32_t c;
+     uint32_t fg;
+     uint32_t bg;
+-};
++} __attribute__((aligned(8)));
+ 
+ struct flanterm_fb_queue_item {
+     size_t x, y;
