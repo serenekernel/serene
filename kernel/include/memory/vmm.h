@@ -29,6 +29,7 @@ phys_addr_t vm_resolve(vm_allocator_t* allocator, virt_addr_t virt_addr);
 void vm_unmap_page(vm_allocator_t* allocator, virt_addr_t virt_addr);
 
 void vm_map_pages_continuous(vm_allocator_t* allocator, virt_addr_t virt_addr, phys_addr_t phys_addr, size_t page_count, vm_access_t access, vm_cache_t cache, vm_protection_flags_t protection);
+void vm_unmap_pages_continuous(vm_allocator_t* allocator, virt_addr_t virt_addr, size_t page_count);
 
 void vm_flush_page_raw(virt_addr_t addr);
 void vm_flush_page_dispatch(virt_addr_t addr);

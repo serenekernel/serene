@@ -143,6 +143,11 @@ void vm_map_pages_continuous(vm_allocator_t* allocator, virt_addr_t virt_addr, p
     for(size_t i = 0; i < page_count; i++) { vm_map_page(allocator, virt_addr + (i * PAGE_SIZE_DEFAULT), phys_addr + (i * PAGE_SIZE_DEFAULT), access, cache, protection); }
 }
 
+void vm_unmap_pages_continuous(vm_allocator_t* allocator, virt_addr_t virt_addr, size_t page_count) {
+    for(size_t i = 0; i < page_count; i++) { vm_unmap_page(allocator, virt_addr + (i * PAGE_SIZE_DEFAULT)); }
+}
+
+
 void vm_map_page(vm_allocator_t* allocator, virt_addr_t virt_addr, phys_addr_t phys_addr, vm_access_t access, vm_cache_t cache, vm_protection_flags_t protection) {
     uint64_t imtermediate_flags = PAGE_PRESENT_BIT | PAGE_RW_BIT;
 

@@ -227,6 +227,10 @@ void vm_unmap_page(vm_allocator_t* allocator, virt_addr_t virt_addr) {
     vm_flush_page_dispatch(virt_addr);
 }
 
+void vm_unmap_pages_continuous(vm_allocator_t* allocator, virt_addr_t virt_addr, size_t page_count) {
+    for(size_t i = 0; i < page_count; i++) { vm_unmap_page(allocator, virt_addr + (i * PAGE_SIZE_DEFAULT)); }
+}
+
 void vm_flush_page_raw(virt_addr_t addr) {
     arch_memory_barrier();
     __asm__ volatile("tlbi vaae1is, %0" ::"r"(addr >> 12) : "memory");
