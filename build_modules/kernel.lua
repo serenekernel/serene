@@ -38,6 +38,7 @@ end
 function build(build_info)
     local sources = glob("kernel/src/**/*.c", "kernel/src/arch/**/*.c")
     table_extend(sources, glob("kernel/deps/flanterm/src/**/*.c"))
+    table_extend(sources, glob("kernel/deps/uACPI/source/**/*.c"))
     table_extend(sources, glob("kernel/src/arch/" .. (build_info.target_architecture or "x86_64") .. "/**/*.c"))
     if build_info.target_architecture == "x86_64" then
         table_extend(sources, glob("kernel/src/arch/x86_64/**/*.asm"))
@@ -78,6 +79,7 @@ function build(build_info)
                 
                 "-Ikernel/include/",
                 "-Ikernel/include/lib",
+                "-Ikernel/deps/uACPI/include",
                 "-Ikernel/deps/limine-protocol/include",
                 "-Ikernel/deps/flanterm/src",
                 "-isystemkernel/deps/freestnd-c-hdrs/include",

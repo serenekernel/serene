@@ -1,0 +1,13 @@
+diff --git a/include/uacpi/platform/config.h b/include/uacpi/platform/config.h
+index dff043f..6b26d34 100644
+--- a/include/uacpi/platform/config.h
++++ b/include/uacpi/platform/config.h
+@@ -124,7 +124,7 @@ UACPI_BUILD_BUG_ON_WITH_MSG(
+  *   ECAM, etc., but doesn't yet have enough subsystems implemented in order
+  *   to run a fully-featured AML interpreter.
+  */
+-// #define UACPI_BAREBONES_MODE
++#define UACPI_BAREBONES_MODE
+ 
+ /*
+  * =============
