@@ -61,15 +61,17 @@ void setup_gdt() {
     vm_map_page(&kernel_allocator, tss_virt, tss_phys, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, convert_vm_protection_basic(VM_PROTECTION_READ_WRITE));
     memset((void*) tss_virt, 0, PAGE_SIZE_DEFAULT);
 
-    phys_addr_t ist1_stack_phys = pmm_alloc_page();
     virt_addr_t ist1_stack_virt = vmm_alloc(&kernel_allocator, 1);
-    vm_map_page(&kernel_allocator, ist1_stack_virt, ist1_stack_phys, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, convert_vm_protection_basic(VM_PROTECTION_READ_WRITE));
+    vm_map_page(&kernel_allocator, ist1_stack_virt, pmm_alloc_page(), VM_ACCESS_KERNEL, VM_CACHE_NORMAL, convert_vm_protection_basic(VM_PROTECTION_READ_WRITE));
     memset((void*) ist1_stack_virt, 0, PAGE_SIZE_DEFAULT);
 
-    phys_addr_t ist2_stack_phys = pmm_alloc_page();
     virt_addr_t ist2_stack_virt = vmm_alloc(&kernel_allocator, 1);
-    vm_map_page(&kernel_allocator, ist2_stack_virt, ist2_stack_phys, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, convert_vm_protection_basic(VM_PROTECTION_READ_WRITE));
+    vm_map_page(&kernel_allocator, ist2_stack_virt, pmm_alloc_page(), VM_ACCESS_KERNEL, VM_CACHE_NORMAL, convert_vm_protection_basic(VM_PROTECTION_READ_WRITE));
     memset((void*) ist2_stack_virt, 0, PAGE_SIZE_DEFAULT);
+
+    virt_addr_t ist3_stack_virt = vmm_alloc(&kernel_allocator, 1);
+    vm_map_page(&kernel_allocator, ist3_stack_virt, pmm_alloc_page(), VM_ACCESS_KERNEL, VM_CACHE_NORMAL, convert_vm_protection_basic(VM_PROTECTION_READ_WRITE));
+    memset((void*) ist3_stack_virt, 0, PAGE_SIZE_DEFAULT);
 
 
     tss_entry_t* tss = (tss_entry_t*) tss_virt;
@@ -78,7 +80,7 @@ void setup_gdt() {
     // #DF
     tss->ist[2] = ist2_stack_virt + PAGE_SIZE_DEFAULT;
     // #MC
-    tss->ist[3] = ist2_stack_virt + PAGE_SIZE_DEFAULT;
+    tss->ist[3] = ist3_stack_virt + PAGE_SIZE_DEFAULT;
 
     gdt_set_tss(tss);
 

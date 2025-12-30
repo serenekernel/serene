@@ -9,5 +9,6 @@ __load_gdt:
 .reload_cs:
     mov ds, dx
     mov es, dx
-    ; ltr cx
+    mov ss, dx
+    ltr cx
     ret 
