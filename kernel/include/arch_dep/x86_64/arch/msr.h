@@ -7,9 +7,9 @@
 #define IA32_PAT_MSR 0x277
 
 // APIC Base MSR flags
-#define APIC_BASE_BSP (1 << 8) // is this the Bootstrap Processor?
-#define APIC_BASE_ENABLE (1 << 11) // global enable/disable APIC
-#define APIC_BASE_X2APIC (1 << 10) // enable x2APIC mode
+#define APIC_BASE_BSP (1 << 8)
+#define APIC_BASE_ENABLE (1 << 11)
+#define APIC_BASE_X2APIC (1 << 10)
 
 // MSRs for segment bases
 #define IA32_FS_BASE_MSR 0xC0000100

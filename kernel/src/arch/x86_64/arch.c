@@ -1,4 +1,8 @@
+#include "arch/cpuid.h"
+#include "arch/hardware/lapic.h"
+
 #include <arch/gdt.h>
+#include <arch/interrupts.h>
 #include <common/arch.h>
 #include <memory/pmm.h>
 #include <memory/vmm.h>
@@ -35,6 +39,9 @@ void arch_init_bsp() {
 
     setup_gdt();
     printf("GDT INIT OK!\n");
+    lapic_init_bsp();
+    printf("LAPIC INIT OK!\n");
+    setup_idt_bsp();
     // We're done, just hang...
 }
 
@@ -45,4 +52,13 @@ void arch_init_ap() {
     printf("ap didn't kill itself\n");
 
     setup_gdt();
+    setup_idt_ap();
+}
+
+uint32_t arch_get_core_id() {
+    return lapic_get_id();
+}
+
+bool arch_is_bsp() {
+    return lapic_is_bsp();
 }

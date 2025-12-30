@@ -21,5 +21,8 @@ void kmain(void) {
 #else
     for(size_t i = 0; i < mp_request.response->cpu_count; i++) { printf("CPU %zu: lapic_id: %u processor_id %u\n", i, mp_request.response->cpus[i]->lapic_id, mp_request.response->cpus[i]->processor_id); }
 #endif
+
+    for(size_t i = 0; i < mp_request.response->cpu_count; i++) {}
+
     arch_die();
 }

@@ -1,5 +1,6 @@
 #pragma once
 #include <common/arch.h>
+#include <stdio.h>
 
 #define assert(expr)                                                                       \
     do {                                                                                   \

@@ -32,11 +32,11 @@ typedef struct {
 
 gdt_entry_t gdt[8] = {
     {}, // null @ 0x0
-    { .limit_low = 0, .base_low = 0, .base_mid = 0, .access = 0x9a, .limit_high_flags = 0xA0, .base_high = 0 }, // kernel code @ 0x08
-    { .limit_low = 0, .base_low = 0, .base_mid = 0, .access = 0x92, .limit_high_flags = 0xC0, .base_high = 0 }, // kernel data @ 0x10
-    { .limit_low = 0, .base_low = 0, .base_mid = 0, .access = 0xfa, .limit_high_flags = 0xA0, .base_high = 0 }, // 32 bit user code @ 0x18
-    { .limit_low = 0, .base_low = 0, .base_mid = 0, .access = 0xf2, .limit_high_flags = 0xC0, .base_high = 0 }, // 64 bit user data @ 0x20
-    { .limit_low = 0, .base_low = 0, .base_mid = 0, .access = 0xfa, .limit_high_flags = 0xA0, .base_high = 0 }, // 64 bit user code @ 0x28
+    { .limit_low = 0, .base_low = 0, .base_mid = 0, .access = 0x9b, .limit_high_flags = 0xA0, .base_high = 0 }, // kernel code @ 0x08
+    { .limit_low = 0, .base_low = 0, .base_mid = 0, .access = 0x93, .limit_high_flags = 0xC0, .base_high = 0 }, // kernel data @ 0x10
+    { .limit_low = 0, .base_low = 0, .base_mid = 0, .access = 0xfb, .limit_high_flags = 0xA0, .base_high = 0 }, // 32 bit user code @ 0x18
+    { .limit_low = 0, .base_low = 0, .base_mid = 0, .access = 0xf3, .limit_high_flags = 0xC0, .base_high = 0 }, // 64 bit user data @ 0x20
+    { .limit_low = 0, .base_low = 0, .base_mid = 0, .access = 0xfb, .limit_high_flags = 0xA0, .base_high = 0 }, // 64 bit user code @ 0x28
     {}, // tss lo @ 0x30
     {}  // tss hi @ 0x38
 };
@@ -73,8 +73,13 @@ void setup_gdt() {
 
 
     tss_entry_t* tss = (tss_entry_t*) tss_virt;
+    // #NMI
     tss->ist[1] = ist1_stack_virt + PAGE_SIZE_DEFAULT;
+    // #DF
     tss->ist[2] = ist2_stack_virt + PAGE_SIZE_DEFAULT;
+    // #MC
+    tss->ist[3] = ist2_stack_virt + PAGE_SIZE_DEFAULT;
+
     gdt_set_tss(tss);
 
     gdtr_t gdtr;
