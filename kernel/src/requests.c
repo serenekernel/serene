@@ -19,6 +19,11 @@ LIMINE_REQUEST volatile struct limine_mp_request mp_request = { .id = LIMINE_MP_
 LIMINE_REQUEST volatile struct limine_mp_request mp_request = { .id = LIMINE_MP_REQUEST_ID, .revision = 0, .response = NULL, .flags = 0 };
 #endif
 
+LIMINE_REQUEST volatile struct limine_rsdp_request rsdp_request = {
+    .id = LIMINE_RSDP_REQUEST_ID,
+    .revision = 0,
+};
+
 LIMINE_REQUEST volatile uint64_t limine_base_revision[] = LIMINE_BASE_REVISION(4);
 __attribute__((used, section(".limine_requests_start"))) volatile uint64_t limine_requests_start_marker[] = LIMINE_REQUESTS_START_MARKER;
 __attribute__((used, section(".limine_requests_end"))) volatile uint64_t limine_requests_end_marker[] = LIMINE_REQUESTS_END_MARKER;
