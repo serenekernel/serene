@@ -1,3 +1,5 @@
+#include "common/interrupts.h"
+
 #include <common/arch.h>
 #include <stdint.h>
 
@@ -18,12 +20,17 @@ static inline void spinlock_unlock(spinlock_t* lock) {
 }
 
 [[nodiscard]] static inline uint64_t spinlock_critical_lock(spinlock_t* lock) {
-    uint64_t flags = arch_get_flags();
+    uint64_t flags = interrupts_enabled();
+    disable_interrupts();
     spinlock_lock(lock);
     return flags;
 }
 
 static inline void spinlock_critical_unlock(spinlock_t* lock, uint64_t flags) {
     spinlock_unlock(lock);
-    arch_set_flags(flags);
+    if(flags) {
+        enable_interrupts();
+    } else {
+        disable_interrupts();
+    }
 }
