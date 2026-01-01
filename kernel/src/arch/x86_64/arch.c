@@ -33,19 +33,19 @@ void arch_pause() {
 }
 
 uacpi_iteration_decision parse_madt(uacpi_handle handle, struct acpi_entry_hdr* hdr) {
-    (void)handle;
-    if(hdr->type == ACPI_MADT_ENTRY_TYPE_LAPIC)  {
-        struct acpi_madt_lapic* mhdr = (struct acpi_madt_lapic*)(hdr);
+    (void) handle;
+    if(hdr->type == ACPI_MADT_ENTRY_TYPE_LAPIC) {
+        struct acpi_madt_lapic* mhdr = (struct acpi_madt_lapic*) (hdr);
         printf("MADT/lapic 0x%llx (%d) %d | %d %d 0x%llx\n", hdr, hdr->type, hdr->length, mhdr->uid, mhdr->id, mhdr->flags);
-    }else if(hdr->type == ACPI_MADT_ENTRY_TYPE_IOAPIC)  {
-        struct acpi_madt_ioapic* mhdr = (struct acpi_madt_ioapic*)(hdr);
+    } else if(hdr->type == ACPI_MADT_ENTRY_TYPE_IOAPIC) {
+        struct acpi_madt_ioapic* mhdr = (struct acpi_madt_ioapic*) (hdr);
         printf("MADT/ioapic 0x%llx (%d) %d | %d 0x%llx 0x%llx\n", hdr, hdr->type, hdr->length, mhdr->id, mhdr->address, mhdr->gsi_base);
         ioapic_init(mhdr->id, mhdr->address);
-    } else if(hdr->type == ACPI_MADT_ENTRY_TYPE_INTERRUPT_SOURCE_OVERRIDE)  {
-        struct acpi_madt_interrupt_source_override* mhdr = (struct acpi_madt_interrupt_source_override*)(hdr);
+    } else if(hdr->type == ACPI_MADT_ENTRY_TYPE_INTERRUPT_SOURCE_OVERRIDE) {
+        struct acpi_madt_interrupt_source_override* mhdr = (struct acpi_madt_interrupt_source_override*) (hdr);
         printf("MADT/iso 0x%llx (%d) %d | %d %d 0x%llx 0x%llx\n", hdr, hdr->type, hdr->length, mhdr->bus, mhdr->source, mhdr->gsi, mhdr->flags);
-    } else if(hdr->type == ACPI_MADT_ENTRY_TYPE_LAPIC_NMI)  {
-        struct acpi_madt_lapic_nmi* mhdr = (struct acpi_madt_lapic_nmi*)(hdr);
+    } else if(hdr->type == ACPI_MADT_ENTRY_TYPE_LAPIC_NMI) {
+        struct acpi_madt_lapic_nmi* mhdr = (struct acpi_madt_lapic_nmi*) (hdr);
         printf("MADT/lapicnmi 0x%llx (%d) %d | %d %d 0x%llx\n", hdr, hdr->type, hdr->length, mhdr->uid, mhdr->flags, mhdr->lint);
     } else {
         printf("MADT/unknown 0x%llx (%d) %d\n", hdr, hdr->type, hdr->length);
@@ -61,7 +61,9 @@ void setup_memory() {
     phys_addr_t highest_phys_address = 0;
     for(size_t i = 0; i < memmap_request.response->entry_count; i++) {
         struct limine_memmap_entry* entry = memmap_request.response->entries[i];
-        if(entry->base + entry->length > highest_phys_address) { highest_phys_address = entry->base + entry->length; }
+        if(entry->base + entry->length > highest_phys_address) {
+            highest_phys_address = entry->base + entry->length;
+        }
     }
 
     virt_addr_t virtual_start = (virt_addr_t) highest_phys_address + hhdm_request.response->offset;
@@ -73,7 +75,6 @@ void setup_memory() {
     printf("we pray\n");
     vm_address_space_switch(&kernel_allocator);
     printf("we didn't die\n");
-
 }
 
 void setup_arch() {
@@ -96,27 +97,31 @@ void setup_arch() {
     }
     lapic_init_bsp();
     printf("LAPIC INIT OK!\n");
-
 }
 
 void setup_uacpi() {
     uacpi_table tbl;
     uacpi_table_find_by_signature(ACPI_MADT_SIGNATURE, &tbl);
-    uacpi_for_each_subtable(
-        tbl.hdr, sizeof(struct acpi_madt), parse_madt, NULL
-    );
-    
+    uacpi_for_each_subtable(tbl.hdr, sizeof(struct acpi_madt), parse_madt, NULL);
+
     printf("IOAPIC INIT OK!\n");
+}
+
+void ps2_test(interrupt_frame*) {
+    if((port_read_u8(0x64) & 1) == 1) {
+        uint8_t scancode = port_read_u8(0x60);
+        printf("Scancode: 0x%02x\n", scancode);
+    }
 }
 
 void arch_init_bsp() {
     setup_memory();
     setup_arch();
     setup_uacpi();
-
+    register_interrupt_handler(0x21, ps2_test);
     enable_interrupts();
     printf("...\n");
-    while (((port_read_u8(0x64) >> 0) & 1) == 1) port_read_u8(0x60);
+    while(((port_read_u8(0x64) >> 0) & 1) == 1) port_read_u8(0x60);
 
     while(1) {
         arch_wait_for_interrupt();
@@ -147,4 +152,14 @@ uint32_t arch_get_core_id() {
 
 bool arch_is_bsp() {
     return lapic_is_bsp();
+}
+
+uint64_t arch_get_flags() {
+    uint64_t rflags;
+    __asm__ volatile("pushfq\n" "popq %0\n" : "=r"(rflags));
+    return rflags;
+}
+
+void arch_set_flags(uint64_t flags) {
+    __asm__ volatile("pushq %0\n" "popfq\n" : : "r"(flags));
 }
