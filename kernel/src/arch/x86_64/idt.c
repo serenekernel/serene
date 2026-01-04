@@ -65,8 +65,10 @@ void setup_idt_ap() {
 
 void x86_64_dispatch_interupt(interrupt_frame* frame) {
     (void) frame;
-    printf("Interrupt received: 0x%02X\n", frame->vector);
-    if(frame->vector < 0x20 && frame->vector != 0x03) { arch_panic_int(frame); }
+    printf("Interrupt received: 0x%02X on lapic %u\n", frame->vector, lapic_get_id());
+    if(frame->vector < 0x20 && frame->vector != 0x03) {
+        arch_panic_int(frame);
+    }
 
     if(interrupt_handlers[frame->vector]) {
         void (*handler)(interrupt_frame*) = (void (*)(interrupt_frame*)) interrupt_handlers[frame->vector];

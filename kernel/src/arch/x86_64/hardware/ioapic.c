@@ -59,7 +59,7 @@ void ioapic_map_irq(io_apic_t* ioapic, uint8_t irq, uint8_t vector, uint8_t dest
     uint64_t redirect = vector;
     redirect |= IOAPIC_DELIVERY_FIXED;
     redirect |= ((uint64_t) destination << IOAPIC_DEST_SHIFT);
-
+    printf("Mapping IRQ %u to vector 0x%02X on destination 0x%02X\n", irq, vector, destination);
     ioapic_set_entry(ioapic, irq, redirect);
 }
 
@@ -81,7 +81,7 @@ void ioapic_init(uint32_t id, phys_addr_t phys_addr) {
     uint32_t ver = ioapic_read(ioapic, IOAPIC_REG_VER);
     ioapic->max_redirection_entry = ((ver >> 16) & 0xFF) + 1;
 
-    printf("ioapic_init: initialized ioapic id %u at phys 0x%llx virt 0x%llx ver: 0x%08x, redirection entries: %u\n", id, phys_addr, mmio_virt, ver, ioapic->max_redirection_entry);
+    printf("ioapic_init: initialized ioapic id %u at phys 0x%llx virt 0x%llx ver: 0x%08x, redirection entries: %u\n", id, phys_addr, mmio_virt, ver & 0xff, ioapic->max_redirection_entry);
     for(uint32_t i = 0; i < ioapic->max_redirection_entry; i++) {
         ioapic_set_entry(ioapic, i, IOAPIC_MASKED);
     }
@@ -89,16 +89,13 @@ void ioapic_init(uint32_t id, phys_addr_t phys_addr) {
     ioapic_map_irq(ioapic, 1, 0x21, lapic_get_id());
 }
 
-
-uacpi_iteration_decision parse_madt(uacpi_handle handle, struct acpi_entry_hdr* hdr) {
-    (void) handle;
+void dump_madt_entry(struct acpi_entry_hdr* hdr) {
     if(hdr->type == ACPI_MADT_ENTRY_TYPE_LAPIC) {
         struct acpi_madt_lapic* mhdr = (struct acpi_madt_lapic*) (hdr);
         printf("MADT/lapic 0x%llx (%d) %d | %d %d 0x%llx\n", hdr, hdr->type, hdr->length, mhdr->uid, mhdr->id, mhdr->flags);
     } else if(hdr->type == ACPI_MADT_ENTRY_TYPE_IOAPIC) {
         struct acpi_madt_ioapic* mhdr = (struct acpi_madt_ioapic*) (hdr);
         printf("MADT/ioapic 0x%llx (%d) %d | %d 0x%llx 0x%llx\n", hdr, hdr->type, hdr->length, mhdr->id, mhdr->address, mhdr->gsi_base);
-        ioapic_init(mhdr->id, mhdr->address);
     } else if(hdr->type == ACPI_MADT_ENTRY_TYPE_INTERRUPT_SOURCE_OVERRIDE) {
         struct acpi_madt_interrupt_source_override* mhdr = (struct acpi_madt_interrupt_source_override*) (hdr);
         printf("MADT/iso 0x%llx (%d) %d | %d %d 0x%llx 0x%llx\n", hdr, hdr->type, hdr->length, mhdr->bus, mhdr->source, mhdr->gsi, mhdr->flags);
@@ -107,6 +104,16 @@ uacpi_iteration_decision parse_madt(uacpi_handle handle, struct acpi_entry_hdr* 
         printf("MADT/lapicnmi 0x%llx (%d) %d | %d %d 0x%llx\n", hdr, hdr->type, hdr->length, mhdr->uid, mhdr->flags, mhdr->lint);
     } else {
         printf("MADT/unknown 0x%llx (%d) %d\n", hdr, hdr->type, hdr->length);
+    }
+}
+
+uacpi_iteration_decision parse_madt(uacpi_handle handle, struct acpi_entry_hdr* hdr) {
+    (void) handle;
+
+    dump_madt_entry(hdr);
+    if(hdr->type == ACPI_MADT_ENTRY_TYPE_IOAPIC) {
+        struct acpi_madt_ioapic* mhdr = (struct acpi_madt_ioapic*) (hdr);
+        ioapic_init(mhdr->id, mhdr->address);
     }
 
     return UACPI_ITERATION_DECISION_CONTINUE;

@@ -98,7 +98,6 @@ void arch_init_bsp() {
     setup_arch();
 
     register_interrupt_handler(0x21, ps2_test);
-    enable_interrupts();
     printf("...\n");
     while(((port_read_u8(0x64) >> 0) & 1) == 1) port_read_u8(0x60);
 
@@ -114,6 +113,8 @@ void arch_init_bsp() {
         printf("Starting AP with lapic id %u\n", mp_request.response->cpus[i]->lapic_id);
         mp_request.response->cpus[i]->goto_address = &arch_init_ap;
     }
+
+    enable_interrupts();
 
     while(1) {
         arch_wait_for_interrupt();
@@ -131,6 +132,9 @@ void arch_init_ap(struct limine_mp_info* info) {
     setup_gdt();
     setup_idt_ap();
     spinlock_unlock(&arch_ap_init_lock);
+
+    enable_interrupts();
+
     while(1) {
         arch_wait_for_interrupt();
     }

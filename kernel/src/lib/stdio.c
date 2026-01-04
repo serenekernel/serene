@@ -13,10 +13,10 @@
 #define NANOPRINTF_IMPLEMENTATION
 #include <common/io.h>
 #include <common/requests.h>
+#include <common/spinlock.h>
 #include <flanterm.h>
 #include <flanterm_backends/fb.h>
 #include <nanoprintf.h>
-
 
 #ifdef __ARCH_X86_64__
 void sink_debug(char* c) {
@@ -70,7 +70,9 @@ void term_init(void) {
         FLANTERM_FB_ROTATE_0
     );
 
-    if(ft_ctx == NULL) { arch_die(); }
+    if(ft_ctx == NULL) {
+        arch_die();
+    }
 }
 
 int snvprintf(char* buffer, size_t bufsz, const char* fmt, va_list val) {
@@ -86,11 +88,17 @@ int snprintf(char* buffer, size_t bufsz, const char* fmt, ...) {
     return rv;
 }
 
+static spinlock_t printf_lock = {};
+
 int vprintf(const char* fmt, va_list val) {
     char buffer[1024];
     const int rv = npf_vsnprintf(buffer, 1024, fmt, val);
+    uint64_t __spinlock_val = spinlock_critical_lock(&printf_lock);
     sink_debug(buffer);
-    if(ft_ctx != NULL) { sink_flanterm(buffer); }
+    if(ft_ctx != NULL) {
+        sink_flanterm(buffer);
+    }
+    spinlock_critical_unlock(&printf_lock, __spinlock_val);
     return rv;
 }
 
