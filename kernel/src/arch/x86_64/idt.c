@@ -67,6 +67,15 @@ void x86_64_dispatch_interupt(interrupt_frame* frame) {
     (void) frame;
     printf("Interrupt received: 0x%02X on lapic %u\n", frame->vector, lapic_get_id());
     if(frame->vector < 0x20 && frame->vector != 0x03) {
+        if(frame->vector == 0x0E) {
+            vm_fault_reason_t reason = VM_FAULT_UKKNOWN;
+            if((frame->error & (1 << 0)) == 0) {
+                reason = VM_FAULT_NOT_PRESENT;
+            }
+            if(vm_handle_page_fault(reason, __read_cr2())) {
+                return;
+            }
+        }
         arch_panic_int(frame);
     }
 

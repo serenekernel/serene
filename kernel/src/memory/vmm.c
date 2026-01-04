@@ -1,8 +1,10 @@
 #include "common/memory.h"
 #include "memory/pmm.h"
 #include "rbtree.h"
+#include "sparse_array.h"
 
 #include <common/requests.h>
+#include <memory/pagedb.h>
 #include <memory/vmm.h>
 
 vm_allocator_t kernel_allocator;
@@ -23,7 +25,7 @@ size_t vm_length_of_node(rb_node_t* node) {
     return vm_node->size;
 }
 
-void vmm_init(vm_allocator_t* allocator, virt_addr_t start, virt_addr_t end) {
+void vmm_kernel_init(vm_allocator_t* allocator, virt_addr_t start, virt_addr_t end) {
     allocator->start = start;
     allocator->end = end;
     allocator->vm_tree.root = nullptr;
@@ -35,14 +37,31 @@ void vmm_init(vm_allocator_t* allocator, virt_addr_t start, virt_addr_t end) {
     allocator->vm_tree.length_of_node = vm_length_of_node;
 }
 
+void vmm_user_init(vm_allocator_t* allocator, virt_addr_t start, virt_addr_t end) {
+    allocator->start = start;
+    allocator->end = end;
+    allocator->vm_tree.root = nullptr;
+#ifdef __ARCH_AARCH64__
+    allocator->paging_structures_base = 0;
+#endif
+    allocator->kernel_paging_structures_base = 0;
+    allocator->vm_tree.value_of_node = vm_value_of_node;
+    allocator->vm_tree.length_of_node = vm_length_of_node;
+    allocator->page_db = sparse_array_create(sizeof(page_db_entry_t), ((end - start) / PAGE_SIZE_DEFAULT) * sizeof(page_db_entry_t));
+}
+
 virt_addr_t vmm_alloc(vm_allocator_t* allocator, size_t page_count) {
     size_t total_size = page_count * PAGE_SIZE_DEFAULT;
 
     virt_addr_t alloc_addr = rb_find_first_gap(&allocator->vm_tree, allocator->start, allocator->end, total_size);
-    if(alloc_addr == 0) { return 0; }
+    if(alloc_addr == 0) {
+        return 0;
+    }
 
     phys_addr_t node_phys = pmm_alloc_page();
-    if(node_phys == 0) { return 0; }
+    if(node_phys == 0) {
+        return 0;
+    }
 
     vm_node_t* new_node = (vm_node_t*) (node_phys + hhdm_request.response->offset);
     new_node->base = alloc_addr;

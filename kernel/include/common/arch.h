@@ -13,3 +13,9 @@ void arch_panic_int(interrupt_frame* frame);
 
 uint64_t arch_get_flags();
 void arch_set_flags(uint64_t flags);
+
+[[nodiscard]] static inline uint64_t __read_cr2(void) {
+    uint64_t value;
+    __asm__ volatile("mov %%cr2, %0" : "=r"(value));
+    return value;
+}

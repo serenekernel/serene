@@ -3,6 +3,7 @@
 #include "common/io.h"
 #include "common/memory.h"
 #include "limine.h"
+#include "sparse_array.h"
 #include "uacpi/internal/tables.h"
 #include "uacpi/status.h"
 
@@ -11,9 +12,11 @@
 #include <common/arch.h>
 #include <common/requests.h>
 #include <common/spinlock.h>
+#include <memory/pagedb.h>
 #include <memory/pmm.h>
 #include <memory/vmm.h>
 #include <stdio.h>
+
 
 const char* arch_get_name(void) {
     return "x86_64";
@@ -47,13 +50,14 @@ void setup_memory() {
 
     virt_addr_t virtual_start = (virt_addr_t) highest_phys_address + hhdm_request.response->offset;
 
-    vmm_init(&kernel_allocator, virtual_start, virtual_start + 0x80000000);
+    vmm_kernel_init(&kernel_allocator, virtual_start, virtual_start + 0x800000000);
     vm_paging_bsp_init(&kernel_allocator);
 
     vm_map_kernel();
     printf("we pray\n");
     vm_address_space_switch(&kernel_allocator);
     printf("we didn't die\n");
+    kernel_allocator.page_db = sparse_array_create(sizeof(page_db_entry_t), ((kernel_allocator.end - kernel_allocator.start) / PAGE_SIZE_DEFAULT) * sizeof(page_db_entry_t));
 }
 
 void setup_uacpi() {
@@ -100,6 +104,17 @@ void arch_init_bsp() {
     register_interrupt_handler(0x21, ps2_test);
     printf("...\n");
     while(((port_read_u8(0x64) >> 0) & 1) == 1) port_read_u8(0x60);
+
+    virt_addr_t address = vmm_alloc(&kernel_allocator, 1);
+    vm_map_page(&kernel_allocator, address, 0, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, convert_vm_protection_raw(VM_PROTECTION_READ_WRITE, false, false));
+    printf("Allocated page at virtual address: 0x%lx\n", address);
+    page_db_entry_t* entry = (page_db_entry_t*) page_db_access_demand(&kernel_allocator, address);
+    printf("Got page db entry at address: %p\n", entry);
+    entry->demand = 1;
+    printf("Set demand paging flag\n");
+    *((uint8_t*) address) = 0x42;
+    printf("Wrote to allocated page: 0x%02x\n", *((uint8_t*) address));
+
 
     for(size_t i = 0; i < mp_request.response->cpu_count; i++) {
         printf("CPU %zu: lapic_id: %u processor_id %u\n", i, mp_request.response->cpus[i]->lapic_id, mp_request.response->cpus[i]->processor_id);

@@ -5,6 +5,7 @@
 #include <arch/msr.h>
 #include <common/arch.h>
 #include <common/requests.h>
+#include <memory/pagedb.h>
 #include <memory/vmm.h>
 #include <string.h>
 
@@ -148,13 +149,19 @@ void vm_map_pages_continuous(vm_allocator_t* allocator, virt_addr_t virt_addr, p
 }
 
 void vm_unmap_pages_continuous(vm_allocator_t* allocator, virt_addr_t virt_addr, size_t page_count) {
+    arch_memory_barrier();
     for(size_t i = 0; i < page_count; i++) {
         vm_unmap_page(allocator, virt_addr + (i * PAGE_SIZE_DEFAULT));
     }
+    arch_memory_barrier();
 }
 
 
 void vm_map_page(vm_allocator_t* allocator, virt_addr_t virt_addr, phys_addr_t phys_addr, vm_access_t access, vm_cache_t cache, vm_protection_flags_t protection) {
+    arch_memory_barrier();
+    uint64_t current_cr3;
+    __asm__ volatile("mov %%cr3, %0" : "=r"(current_cr3));
+
     uint64_t imtermediate_flags = PAGE_PRESENT_BIT | PAGE_RW_BIT;
 
     if(access == VM_ACCESS_USER) {
@@ -168,7 +175,10 @@ void vm_map_page(vm_allocator_t* allocator, virt_addr_t virt_addr, phys_addr_t p
     uint64_t* pt = next_or_allocate(pd, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PD), imtermediate_flags);
     uint64_t page_entry = (phys_addr & SMALL_PAGE_ADDRESS_MASK) | (protection.present ? PAGE_PRESENT_BIT : 0) | (protection.write ? PAGE_RW_BIT : 0) | convert_access_flags(access) | convert_cache_flags(cache, PAGE_SIZE_SMALL);
 
-    pt[(uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PT)] = page_entry;
+    uint16_t pt_index = (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PT);
+    pt[pt_index] = page_entry;
+    vm_flush_page_dispatch(virt_addr);
+    arch_memory_barrier();
 }
 
 void vm_reprotect_page(vm_allocator_t* allocator, virt_addr_t virt_addr, vm_access_t access, vm_cache_t cache, vm_protection_flags_t protection) {
@@ -218,6 +228,7 @@ phys_addr_t vm_resolve(vm_allocator_t* allocator, virt_addr_t virt_addr) {
     return page_entry & SMALL_PAGE_ADDRESS_MASK;
 }
 void vm_unmap_page(vm_allocator_t* allocator, virt_addr_t virt_addr) {
+    arch_memory_barrier();
     uint64_t* pml4 = (uint64_t*) phys_to_hhdm(allocator->kernel_paging_structures_base);
 
     uint64_t* pdpt = next_if_exists(pml4, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PML4));
@@ -237,6 +248,7 @@ void vm_unmap_page(vm_allocator_t* allocator, virt_addr_t virt_addr) {
 
     pt[(uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PT)] = 0;
     vm_flush_page_dispatch(virt_addr);
+    arch_memory_barrier();
 }
 
 
@@ -318,4 +330,54 @@ void vm_paging_bsp_init(vm_allocator_t* allocator) {
 void vm_paging_ap_init(vm_allocator_t* allocator) {
     (void) allocator;
     __setup_pat();
+}
+
+bool vm_handle_page_fault(vm_fault_reason_t reason, virt_addr_t fault_address) {
+    printf("Page fault at address 0x%lx, reason %u\n", fault_address, reason);
+    if(reason == VM_FAULT_UKKNOWN) {
+        return false;
+    }
+
+    page_db_entry_t* entry = (page_db_entry_t*) page_db_access_demand(&kernel_allocator, fault_address);
+    if(entry == NULL) {
+        return false;
+    }
+
+    printf("Page fault handler: got page db entry at %p (demand=%u)\n", entry, entry->demand);
+
+    if(entry->demand) {
+        phys_addr_t phys = pmm_alloc_page();
+        vm_remap_page(&kernel_allocator, fault_address, phys);
+        // entry->demand = false;
+        return true;
+    }
+
+    return false;
+}
+
+void vm_remap_page(vm_allocator_t* allocator, virt_addr_t virt_addr, phys_addr_t new_phys_addr) {
+    arch_memory_barrier();
+    uint64_t* pml4 = (uint64_t*) phys_to_hhdm(allocator->kernel_paging_structures_base);
+
+    uint64_t* pdpt = next_if_exists(pml4, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PML4));
+    if(pdpt == NULL) {
+        return;
+    }
+
+    uint64_t* pd = next_if_exists(pdpt, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PDPT));
+    if(pd == NULL) {
+        return;
+    }
+
+    uint64_t* pt = next_if_exists(pd, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PD));
+    if(pt == NULL) {
+        return;
+    }
+
+    uint64_t old_entry = pt[(uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PT)];
+    uint64_t page_entry = (new_phys_addr & SMALL_PAGE_ADDRESS_MASK) | (old_entry & (~SMALL_PAGE_ADDRESS_MASK));
+    printf("Remapping virtual address 0x%lx to physical address 0x%lx old_entry=0x%lx new_entry=0x%lx\n", virt_addr, new_phys_addr, old_entry, page_entry);
+    pt[(uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PT)] = page_entry | PAGE_PRESENT_BIT;
+    vm_flush_page_dispatch(virt_addr);
+    arch_memory_barrier();
 }

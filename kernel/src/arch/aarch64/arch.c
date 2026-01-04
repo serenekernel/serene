@@ -31,12 +31,14 @@ void arch_init_bsp() {
     phys_addr_t highest_phys_address = 0;
     for(size_t i = 0; i < memmap_request.response->entry_count; i++) {
         struct limine_memmap_entry* entry = memmap_request.response->entries[i];
-        if(entry->base + entry->length > highest_phys_address) { highest_phys_address = entry->base + entry->length; }
+        if(entry->base + entry->length > highest_phys_address) {
+            highest_phys_address = entry->base + entry->length;
+        }
     }
 
     virt_addr_t virtual_start = (virt_addr_t) highest_phys_address + hhdm_request.response->offset;
 
-    vmm_init(&kernel_allocator, virtual_start, virtual_start + 0x80000000);
+    vmm_kernel_init(&kernel_allocator, virtual_start, virtual_start + 0x80000000);
     printf("vmm\n");
     vm_paging_bsp_init(&kernel_allocator);
     printf("paging\n");
