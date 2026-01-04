@@ -17,12 +17,10 @@ void kmain(void) {
     arch_init_bsp();
 
 #ifdef __ARCH_AARCH64__
-    for(size_t i = 0; i < mp_request.response->cpu_count; i++) { printf("CPU %zu: mpidr: %u processor_id %u\n", i, mp_request.response->cpus[i]->mpidr, mp_request.response->cpus[i]->processor_id); }
-#else
-    for(size_t i = 0; i < mp_request.response->cpu_count; i++) { printf("CPU %zu: lapic_id: %u processor_id %u\n", i, mp_request.response->cpus[i]->lapic_id, mp_request.response->cpus[i]->processor_id); }
+    for(size_t i = 0; i < mp_request.response->cpu_count; i++) {
+        printf("CPU %zu: mpidr: %u processor_id %u\n", i, mp_request.response->cpus[i]->mpidr, mp_request.response->cpus[i]->processor_id);
+    }
 #endif
-
-    for(size_t i = 0; i < mp_request.response->cpu_count; i++) {}
 
     arch_die();
 }

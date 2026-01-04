@@ -2,6 +2,7 @@
 #include "common/interrupts.h"
 #include "common/io.h"
 #include "common/memory.h"
+#include "limine.h"
 #include "uacpi/internal/tables.h"
 #include "uacpi/status.h"
 
@@ -9,6 +10,7 @@
 #include <arch/interrupts.h>
 #include <common/arch.h>
 #include <common/requests.h>
+#include <common/spinlock.h>
 #include <memory/pmm.h>
 #include <memory/vmm.h>
 #include <stdio.h>
@@ -84,7 +86,7 @@ void setup_arch() {
     setup_idt_bsp();
     printf("IDT INIT OK!\n");
     if(rsdp_request.response == NULL) {
-        printf("ACPI init NOT okay\n");
+        printf("uACPI init NOT okay\n");
     } else {
         phys_addr_t phys = pmm_alloc_page();
         virt_addr_t virt = vmm_alloc(&kernel_allocator, 1);
@@ -114,21 +116,40 @@ void ps2_test(interrupt_frame*) {
     }
 }
 
+static spinlock_t arch_ap_init_lock = {};
+void arch_init_ap(struct limine_mp_info* info);
+
 void arch_init_bsp() {
     setup_memory();
     setup_arch();
     setup_uacpi();
+
     register_interrupt_handler(0x21, ps2_test);
     enable_interrupts();
     printf("...\n");
     while(((port_read_u8(0x64) >> 0) & 1) == 1) port_read_u8(0x60);
+
+    for(size_t i = 0; i < mp_request.response->cpu_count; i++) {
+        printf("CPU %zu: lapic_id: %u processor_id %u\n", i, mp_request.response->cpus[i]->lapic_id, mp_request.response->cpus[i]->processor_id);
+    }
+
+    for(size_t i = 0; i < mp_request.response->cpu_count; i++) {
+        if(mp_request.response->cpus[i]->lapic_id == lapic_get_id()) {
+            continue;
+        }
+
+        printf("Starting AP with lapic id %u\n", mp_request.response->cpus[i]->lapic_id);
+        mp_request.response->cpus[i]->goto_address = &arch_init_ap;
+    }
 
     while(1) {
         arch_wait_for_interrupt();
     }
 }
 
-void arch_init_ap() {
+void arch_init_ap(struct limine_mp_info* info) {
+    (void) info;
+    spinlock_lock(&arch_ap_init_lock);
     vm_paging_ap_init(&kernel_allocator);
     printf("ap paging pray\n");
     vm_address_space_switch(&kernel_allocator);
@@ -136,7 +157,7 @@ void arch_init_ap() {
 
     setup_gdt();
     setup_idt_ap();
-
+    spinlock_unlock(&arch_ap_init_lock);
     while(1) {
         arch_wait_for_interrupt();
     }

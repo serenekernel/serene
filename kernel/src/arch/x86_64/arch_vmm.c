@@ -133,25 +133,33 @@ uint64_t* next_or_allocate(uint64_t* root, int idx, uint64_t flags) {
 }
 
 uint64_t* next_if_exists(uint64_t* root, int idx) {
-    if(!((root[idx] & PAGE_PRESENT_BIT) > 0)) { return NULL; }
+    if(!((root[idx] & PAGE_PRESENT_BIT) > 0)) {
+        return NULL;
+    }
 
     phys_addr_t next_table_phys = root[idx] & SMALL_PAGE_ADDRESS_MASK;
     return (uint64_t*) phys_to_hhdm(next_table_phys);
 }
 
 void vm_map_pages_continuous(vm_allocator_t* allocator, virt_addr_t virt_addr, phys_addr_t phys_addr, size_t page_count, vm_access_t access, vm_cache_t cache, vm_protection_flags_t protection) {
-    for(size_t i = 0; i < page_count; i++) { vm_map_page(allocator, virt_addr + (i * PAGE_SIZE_DEFAULT), phys_addr + (i * PAGE_SIZE_DEFAULT), access, cache, protection); }
+    for(size_t i = 0; i < page_count; i++) {
+        vm_map_page(allocator, virt_addr + (i * PAGE_SIZE_DEFAULT), phys_addr + (i * PAGE_SIZE_DEFAULT), access, cache, protection);
+    }
 }
 
 void vm_unmap_pages_continuous(vm_allocator_t* allocator, virt_addr_t virt_addr, size_t page_count) {
-    for(size_t i = 0; i < page_count; i++) { vm_unmap_page(allocator, virt_addr + (i * PAGE_SIZE_DEFAULT)); }
+    for(size_t i = 0; i < page_count; i++) {
+        vm_unmap_page(allocator, virt_addr + (i * PAGE_SIZE_DEFAULT));
+    }
 }
 
 
 void vm_map_page(vm_allocator_t* allocator, virt_addr_t virt_addr, phys_addr_t phys_addr, vm_access_t access, vm_cache_t cache, vm_protection_flags_t protection) {
     uint64_t imtermediate_flags = PAGE_PRESENT_BIT | PAGE_RW_BIT;
 
-    if(access == VM_ACCESS_USER) { imtermediate_flags |= PAGE_USER_BIT; }
+    if(access == VM_ACCESS_USER) {
+        imtermediate_flags |= PAGE_USER_BIT;
+    }
 
     uint64_t* pml4 = (uint64_t*) phys_to_hhdm(allocator->kernel_paging_structures_base);
 
@@ -166,7 +174,9 @@ void vm_map_page(vm_allocator_t* allocator, virt_addr_t virt_addr, phys_addr_t p
 void vm_reprotect_page(vm_allocator_t* allocator, virt_addr_t virt_addr, vm_access_t access, vm_cache_t cache, vm_protection_flags_t protection) {
     uint64_t imtermediate_flags = PAGE_PRESENT_BIT | PAGE_RW_BIT;
 
-    if(access == VM_ACCESS_USER) { imtermediate_flags |= PAGE_USER_BIT; }
+    if(access == VM_ACCESS_USER) {
+        imtermediate_flags |= PAGE_USER_BIT;
+    }
 
     uint64_t* pml4 = (uint64_t*) phys_to_hhdm(allocator->kernel_paging_structures_base);
 
@@ -186,16 +196,24 @@ phys_addr_t vm_resolve(vm_allocator_t* allocator, virt_addr_t virt_addr) {
     uint64_t* pml4 = (uint64_t*) phys_to_hhdm(allocator->kernel_paging_structures_base);
 
     uint64_t* pdpt = next_if_exists(pml4, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PML4));
-    if(pdpt == NULL) { return 0; }
+    if(pdpt == NULL) {
+        return 0;
+    }
 
     uint64_t* pd = next_if_exists(pdpt, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PDPT));
-    if(pd == NULL) { return 0; }
+    if(pd == NULL) {
+        return 0;
+    }
 
     uint64_t* pt = next_if_exists(pd, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PD));
-    if(pt == NULL) { return 0; }
+    if(pt == NULL) {
+        return 0;
+    }
 
     uint64_t page_entry = pt[(uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PT)];
-    if(!(page_entry & PAGE_PRESENT_BIT)) { return 0; }
+    if(!(page_entry & PAGE_PRESENT_BIT)) {
+        return 0;
+    }
 
     return page_entry & SMALL_PAGE_ADDRESS_MASK;
 }
@@ -203,13 +221,19 @@ void vm_unmap_page(vm_allocator_t* allocator, virt_addr_t virt_addr) {
     uint64_t* pml4 = (uint64_t*) phys_to_hhdm(allocator->kernel_paging_structures_base);
 
     uint64_t* pdpt = next_if_exists(pml4, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PML4));
-    if(pdpt == NULL) { return; }
+    if(pdpt == NULL) {
+        return;
+    }
 
     uint64_t* pd = next_if_exists(pdpt, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PDPT));
-    if(pd == NULL) { return; }
+    if(pd == NULL) {
+        return;
+    }
 
     uint64_t* pt = next_if_exists(pd, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PD));
-    if(pt == NULL) { return; }
+    if(pt == NULL) {
+        return;
+    }
 
     pt[(uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PT)] = 0;
     vm_flush_page_dispatch(virt_addr);
@@ -234,7 +258,7 @@ void vm_flush_page_dispatch(virt_addr_t addr) {
 #define PAT_WRITE_BACK 6
 #define PAT_UNCACHED 7
 
-inline void __setup_pat() {
+void __setup_pat() {
     // read cpuid 0x01 and bit 16 on edx
     uint32_t edx = __cpuid(CPUID_GET_FEATURES, 0, CPUID_EDX);
     if((edx & CPUID_GET_FEATURES_EDX_PAT) == 0) {
