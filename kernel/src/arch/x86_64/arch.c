@@ -34,29 +34,6 @@ void arch_pause() {
     __asm__ volatile("pause" ::: "memory");
 }
 
-uacpi_iteration_decision parse_madt(uacpi_handle handle, struct acpi_entry_hdr* hdr) {
-    (void) handle;
-    if(hdr->type == ACPI_MADT_ENTRY_TYPE_LAPIC) {
-        struct acpi_madt_lapic* mhdr = (struct acpi_madt_lapic*) (hdr);
-        printf("MADT/lapic 0x%llx (%d) %d | %d %d 0x%llx\n", hdr, hdr->type, hdr->length, mhdr->uid, mhdr->id, mhdr->flags);
-    } else if(hdr->type == ACPI_MADT_ENTRY_TYPE_IOAPIC) {
-        struct acpi_madt_ioapic* mhdr = (struct acpi_madt_ioapic*) (hdr);
-        printf("MADT/ioapic 0x%llx (%d) %d | %d 0x%llx 0x%llx\n", hdr, hdr->type, hdr->length, mhdr->id, mhdr->address, mhdr->gsi_base);
-        ioapic_init(mhdr->id, mhdr->address);
-    } else if(hdr->type == ACPI_MADT_ENTRY_TYPE_INTERRUPT_SOURCE_OVERRIDE) {
-        struct acpi_madt_interrupt_source_override* mhdr = (struct acpi_madt_interrupt_source_override*) (hdr);
-        printf("MADT/iso 0x%llx (%d) %d | %d %d 0x%llx 0x%llx\n", hdr, hdr->type, hdr->length, mhdr->bus, mhdr->source, mhdr->gsi, mhdr->flags);
-    } else if(hdr->type == ACPI_MADT_ENTRY_TYPE_LAPIC_NMI) {
-        struct acpi_madt_lapic_nmi* mhdr = (struct acpi_madt_lapic_nmi*) (hdr);
-        printf("MADT/lapicnmi 0x%llx (%d) %d | %d %d 0x%llx\n", hdr, hdr->type, hdr->length, mhdr->uid, mhdr->flags, mhdr->lint);
-    } else {
-        printf("MADT/unknown 0x%llx (%d) %d\n", hdr, hdr->type, hdr->length);
-    }
-
-    return UACPI_ITERATION_DECISION_CONTINUE;
-}
-
-
 void setup_memory() {
     pmm_init();
 
@@ -79,34 +56,31 @@ void setup_memory() {
     printf("we didn't die\n");
 }
 
+void setup_uacpi() {
+    phys_addr_t phys = pmm_alloc_page();
+    virt_addr_t virt = vmm_alloc(&kernel_allocator, 1);
+    vm_map_page(&kernel_allocator, virt, phys, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, convert_vm_protection_basic(VM_PROTECTION_READ_WRITE));
+    if(uacpi_setup_early_table_access((void*) virt, 1 * PAGE_SIZE_DEFAULT) != UACPI_STATUS_OK) {
+        printf("uACPI init VERY NOT okay!\n");
+        arch_die();
+    }
+    printf("uACPI INIT OK!\n");
+}
+
 void setup_arch() {
     setup_gdt();
     printf("GDT INIT OK!\n");
 
     setup_idt_bsp();
     printf("IDT INIT OK!\n");
-    if(rsdp_request.response == NULL) {
-        printf("uACPI init NOT okay\n");
+    if(rsdp_request.response != NULL) {
+        setup_uacpi();
     } else {
-        phys_addr_t phys = pmm_alloc_page();
-        virt_addr_t virt = vmm_alloc(&kernel_allocator, 1);
-        vm_map_page(&kernel_allocator, virt, phys, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, convert_vm_protection_basic(VM_PROTECTION_READ_WRITE));
-        if(uacpi_setup_early_table_access((void*) virt, 1 * PAGE_SIZE_DEFAULT) != UACPI_STATUS_OK) {
-            printf("uACPI init VERY NOT okay!\n");
-            arch_die();
-        }
-        printf("uACPI INIT OK!\n");
+        printf("uACPI init NOT okay\n");
     }
+
     lapic_init_bsp();
     printf("LAPIC INIT OK!\n");
-}
-
-void setup_uacpi() {
-    uacpi_table tbl;
-    uacpi_table_find_by_signature(ACPI_MADT_SIGNATURE, &tbl);
-    uacpi_for_each_subtable(tbl.hdr, sizeof(struct acpi_madt), parse_madt, NULL);
-
-    printf("IOAPIC INIT OK!\n");
 }
 
 void ps2_test(interrupt_frame*) {
@@ -122,7 +96,6 @@ void arch_init_ap(struct limine_mp_info* info);
 void arch_init_bsp() {
     setup_memory();
     setup_arch();
-    setup_uacpi();
 
     register_interrupt_handler(0x21, ps2_test);
     enable_interrupts();

@@ -173,6 +173,7 @@ void lapic_init_bsp() {
 
     lapic_configure();
     lapic_timer_init_bsp();
+    ioapic_setup();
     printf("initialized in %s mode for lapic %d (bsp)\n", x2apic_mode ? "x2APIC" : "xAPIC", lapic_get_id());
 }
 
