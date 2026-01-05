@@ -5,8 +5,9 @@
 #include <stddef.h>
 
 typedef enum {
-    VM_OPTIONS_NONE = 0x0,
-    VM_OPTIONS_DEMAND = 0x1,
+    VM_OPTIONS_NONE = 0,
+    VM_OPTIONS_DEMAND,
+    VM_OPTIONS_BACKED,
 } vm_node_options_t;
 
 typedef struct {
@@ -46,6 +47,7 @@ void vmm_user_init(vm_allocator_t* allocator, virt_addr_t start, virt_addr_t end
 
 virt_addr_t vmm_alloc(vm_allocator_t* allocator, size_t page_count);
 virt_addr_t vmm_alloc_demand(vm_allocator_t* allocator, size_t page_count, vm_access_t access, vm_cache_t cache, vm_flags_t flags);
+virt_addr_t vmm_alloc_backed(vm_allocator_t* allocator, size_t page_count, vm_access_t access, vm_cache_t cache, vm_flags_t flags);
 void vmm_free(vm_allocator_t* allocator, virt_addr_t addr);
 
 void vm_map_page(vm_allocator_t* allocator, virt_addr_t virt_addr, phys_addr_t phys_addr, vm_access_t access, vm_cache_t cache, vm_flags_t flags);
