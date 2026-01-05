@@ -57,7 +57,7 @@ void setup_memory() {
     printf("we pray\n");
     vm_address_space_switch(&kernel_allocator);
     printf("we didn't die\n");
-    kernel_allocator.page_db = sparse_array_create(sizeof(page_db_entry_t), ((kernel_allocator.end - kernel_allocator.start) / PAGE_SIZE_DEFAULT) * sizeof(page_db_entry_t));
+    // kernel_allocator.page_db = sparse_array_create(sizeof(page_db_entry_t), ((kernel_allocator.end - kernel_allocator.start) / PAGE_SIZE_DEFAULT) * sizeof(page_db_entry_t));
 }
 
 void setup_uacpi() {
@@ -105,10 +105,7 @@ void arch_init_bsp() {
     printf("...\n");
     while(((port_read_u8(0x64) >> 0) & 1) == 1) port_read_u8(0x60);
 
-    virt_addr_t address = vmm_alloc(&kernel_allocator, 1);
-    vm_map_page(&kernel_allocator, address, 0, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE | VM_NON_PRESENT);
-    page_db_entry_t* entry = (page_db_entry_t*) page_db_access_demand(&kernel_allocator, address);
-    entry->demand = 1;
+    virt_addr_t address = vmm_alloc_demand(&kernel_allocator, 1, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE);
     *((uint8_t*) address) = 0x42;
 
 

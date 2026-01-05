@@ -1,5 +1,6 @@
 #include "common/memory.h"
 #include "memory/pmm.h"
+#include "rbtree.h"
 
 #include <arch/cpuid.h>
 #include <arch/msr.h>
@@ -340,17 +341,16 @@ bool vm_handle_page_fault(vm_fault_reason_t reason, virt_addr_t fault_address) {
         return false;
     }
 
-    page_db_entry_t* entry = (page_db_entry_t*) page_db_access_demand(&kernel_allocator, fault_address);
-    if(entry == NULL) {
+    vm_node_t* node = (vm_node_t*) rb_find_within(&kernel_allocator.vm_tree, fault_address);
+    if(node == NULL) {
         return false;
     }
 
-    printf("Page fault handler: got page db entry at %p (demand=%u)\n", entry, entry->demand);
+    printf("Page fault handler: got vm_node at %p (demand=%u)\n", node, node->options_type == VM_OPTIONS_DEMAND);
 
-    if(entry->demand) {
+    if(node->options_type == VM_OPTIONS_DEMAND) {
         phys_addr_t phys = pmm_alloc_page();
-        vm_remap_page(&kernel_allocator, fault_address, phys);
-        // entry->demand = false;
+        vm_map_page(&kernel_allocator, fault_address, phys, node->options.demand.access, node->options.demand.cache, node->options.demand.flags);
         return true;
     }
 

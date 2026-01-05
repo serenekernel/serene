@@ -9,12 +9,6 @@
 
 vm_allocator_t kernel_allocator;
 
-typedef struct {
-    rb_node_t rb_node;
-    uintptr_t base;
-    size_t size;
-} vm_node_t;
-
 size_t vm_value_of_node(rb_node_t* node) {
     vm_node_t* vm_node = (vm_node_t*) node;
     return vm_node->base;
@@ -47,10 +41,9 @@ void vmm_user_init(vm_allocator_t* allocator, virt_addr_t start, virt_addr_t end
     allocator->kernel_paging_structures_base = 0;
     allocator->vm_tree.value_of_node = vm_value_of_node;
     allocator->vm_tree.length_of_node = vm_length_of_node;
-    allocator->page_db = sparse_array_create(sizeof(page_db_entry_t), ((end - start) / PAGE_SIZE_DEFAULT) * sizeof(page_db_entry_t));
 }
 
-virt_addr_t vmm_alloc(vm_allocator_t* allocator, size_t page_count) {
+vm_node_t* vmm_alloc_raw(vm_allocator_t* allocator, size_t page_count) {
     size_t total_size = page_count * PAGE_SIZE_DEFAULT;
 
     virt_addr_t alloc_addr = rb_find_first_gap(&allocator->vm_tree, allocator->start, allocator->end, total_size);
@@ -69,7 +62,22 @@ virt_addr_t vmm_alloc(vm_allocator_t* allocator, size_t page_count) {
 
     rb_insert(&allocator->vm_tree, &new_node->rb_node);
 
-    return alloc_addr;
+    return new_node;
+}
+
+virt_addr_t vmm_alloc(vm_allocator_t* allocator, size_t page_count) {
+    vm_node_t* node = vmm_alloc_raw(allocator, page_count);
+    node->options_type = VM_OPTIONS_NONE;
+    return node->base;
+}
+
+virt_addr_t vmm_alloc_demand(vm_allocator_t* allocator, size_t page_count, vm_access_t access, vm_cache_t cache, vm_flags_t flags) {
+    vm_node_t* node = vmm_alloc_raw(allocator, page_count);
+    node->options_type = VM_OPTIONS_DEMAND;
+    node->options.demand.flags = flags;
+    node->options.demand.access = access;
+    node->options.demand.cache = cache;
+    return node->base;
 }
 
 void vmm_free(vm_allocator_t* allocator, virt_addr_t addr) {

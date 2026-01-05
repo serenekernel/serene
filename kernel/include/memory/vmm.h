@@ -4,6 +4,27 @@
 #include <rbtree.h>
 #include <stddef.h>
 
+typedef enum {
+    VM_OPTIONS_NONE = 0x0,
+    VM_OPTIONS_DEMAND = 0x1,
+} vm_node_options_t;
+
+typedef struct {
+    rb_node_t rb_node;
+    uintptr_t base;
+    size_t size;
+
+    vm_node_options_t options_type;
+    union {
+        struct {
+            vm_cache_t cache;
+            vm_access_t access;
+            vm_flags_t flags;
+        } demand;
+    } options;
+
+} vm_node_t;
+
 typedef struct {
     virt_addr_t start;
     virt_addr_t end;
@@ -15,8 +36,6 @@ typedef struct {
     // for the ttbr1_el1 or cr3 on x86
     phys_addr_t kernel_paging_structures_base;
 
-    sparse_array_t* page_db;
-
     rb_tree_t vm_tree;
 } vm_allocator_t;
 
@@ -26,6 +45,7 @@ void vmm_kernel_init(vm_allocator_t* allocator, virt_addr_t start, virt_addr_t e
 void vmm_user_init(vm_allocator_t* allocator, virt_addr_t start, virt_addr_t end);
 
 virt_addr_t vmm_alloc(vm_allocator_t* allocator, size_t page_count);
+virt_addr_t vmm_alloc_demand(vm_allocator_t* allocator, size_t page_count, vm_access_t access, vm_cache_t cache, vm_flags_t flags);
 void vmm_free(vm_allocator_t* allocator, virt_addr_t addr);
 
 void vm_map_page(vm_allocator_t* allocator, virt_addr_t virt_addr, phys_addr_t phys_addr, vm_access_t access, vm_cache_t cache, vm_flags_t flags);
