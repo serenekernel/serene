@@ -6,6 +6,7 @@
 #include <common/requests.h>
 #include <memory/pagedb.h>
 #include <memory/vmm.h>
+#include <string.h>
 
 vm_allocator_t kernel_allocator;
 
@@ -80,15 +81,19 @@ virt_addr_t vmm_alloc_demand(vm_allocator_t* allocator, size_t page_count, vm_ac
     return node->base;
 }
 
-virt_addr_t vmm_alloc_backed(vm_allocator_t* allocator, size_t page_count, vm_access_t access, vm_cache_t cache, vm_flags_t flags) {
+virt_addr_t vmm_alloc_backed(vm_allocator_t* allocator, size_t page_count, vm_access_t access, vm_cache_t cache, vm_flags_t flags, bool zero_fill) {
     vm_node_t* node = vmm_alloc_raw(allocator, page_count);
     node->options_type = VM_OPTIONS_BACKED;
     for(size_t i = 0; i < page_count; i++) {
         phys_addr_t phys = pmm_alloc_page();
         vm_map_page(allocator, node->base + (i * PAGE_SIZE_DEFAULT), phys, access, cache, flags);
     }
+    if(zero_fill) {
+        memset((void*) node->base, 0, page_count * PAGE_SIZE_DEFAULT);
+    }
     return node->base;
 }
+
 
 void vmm_free(vm_allocator_t* allocator, virt_addr_t addr) {
     rb_node_t* node = rb_find_exact(&allocator->vm_tree, addr);

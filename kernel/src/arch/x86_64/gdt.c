@@ -56,23 +56,10 @@ void gdt_set_tss(tss_entry_t* tss) {
 extern void __load_gdt(gdtr_t* gdtr, uint16_t code_sel, uint16_t data_sel, uint16_t tss_sel);
 
 void setup_gdt() {
-    phys_addr_t tss_phys = pmm_alloc_page();
-    virt_addr_t tss_virt = vmm_alloc(&kernel_allocator, 1);
-    vm_map_page(&kernel_allocator, tss_virt, tss_phys, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE);
-    memset((void*) tss_virt, 0, PAGE_SIZE_DEFAULT);
-
-    virt_addr_t ist1_stack_virt = vmm_alloc(&kernel_allocator, 1);
-    vm_map_page(&kernel_allocator, ist1_stack_virt, pmm_alloc_page(), VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE);
-    memset((void*) ist1_stack_virt, 0, PAGE_SIZE_DEFAULT);
-
-    virt_addr_t ist2_stack_virt = vmm_alloc(&kernel_allocator, 1);
-    vm_map_page(&kernel_allocator, ist2_stack_virt, pmm_alloc_page(), VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE);
-    memset((void*) ist2_stack_virt, 0, PAGE_SIZE_DEFAULT);
-
-    virt_addr_t ist3_stack_virt = vmm_alloc(&kernel_allocator, 1);
-    vm_map_page(&kernel_allocator, ist3_stack_virt, pmm_alloc_page(), VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE);
-    memset((void*) ist3_stack_virt, 0, PAGE_SIZE_DEFAULT);
-
+    virt_addr_t tss_virt = vmm_alloc_backed(&kernel_allocator, 1, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true);
+    virt_addr_t ist1_stack_virt = vmm_alloc_backed(&kernel_allocator, 1, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true);
+    virt_addr_t ist2_stack_virt = vmm_alloc_backed(&kernel_allocator, 1, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true);
+    virt_addr_t ist3_stack_virt = vmm_alloc_backed(&kernel_allocator, 1, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true);
 
     tss_entry_t* tss = (tss_entry_t*) tss_virt;
     // #NMI
