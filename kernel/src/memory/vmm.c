@@ -96,7 +96,8 @@ void vm_map_kernel() {
     printf("kernel_mapping.response->physical_base=%p\n", kernel_mapping.response->physical_base);
     printf("&kernel_start=%p &kernel_end=%p, kernel_page_count=%lu\n", &kernel_start, &kernel_end, kernel_page_count);
 
-    vm_map_pages_continuous(&kernel_allocator, kernel_mapping.response->virtual_base, kernel_mapping.response->physical_base, kernel_page_count, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, convert_vm_protection_basic(VM_PROTECTION_READ_WRITE_EXECUTE));
+    // @todo: parse the kernel binary CORRECTLY
+    vm_map_pages_continuous(&kernel_allocator, kernel_mapping.response->virtual_base, kernel_mapping.response->physical_base, kernel_page_count, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE | VM_EXECUTE);
 
     for(size_t i = 0; i < memmap_request.response->entry_count; i++) {
         struct limine_memmap_entry* current = memmap_request.response->entries[i];
@@ -115,11 +116,11 @@ void vm_map_kernel() {
         }
 
         if(current->type == LIMINE_MEMMAP_USABLE || current->type == LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE || current->type == LIMINE_MEMMAP_EXECUTABLE_AND_MODULES) {
-            vm_map_pages_continuous(&kernel_allocator, virt_base, phys_base, page_count, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, convert_vm_protection_basic(VM_PROTECTION_READ_WRITE));
+            vm_map_pages_continuous(&kernel_allocator, virt_base, phys_base, page_count, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE);
         } else if(current->type == LIMINE_MEMMAP_FRAMEBUFFER) {
-            vm_map_pages_continuous(&kernel_allocator, virt_base, phys_base, page_count, VM_ACCESS_KERNEL, VM_CACHE_WRITE_COMBINE, convert_vm_protection_basic(VM_PROTECTION_READ_WRITE));
+            vm_map_pages_continuous(&kernel_allocator, virt_base, phys_base, page_count, VM_ACCESS_KERNEL, VM_CACHE_WRITE_COMBINE, VM_READ_WRITE);
         } else if(current->type == LIMINE_MEMMAP_ACPI_RECLAIMABLE || current->type == LIMINE_MEMMAP_ACPI_TABLES) {
-            vm_map_pages_continuous(&kernel_allocator, virt_base, phys_base, page_count, VM_ACCESS_KERNEL, VM_CACHE_WRITE_THROUGH, convert_vm_protection_basic(VM_PROTECTION_READ_WRITE));
+            vm_map_pages_continuous(&kernel_allocator, virt_base, phys_base, page_count, VM_ACCESS_KERNEL, VM_CACHE_WRITE_THROUGH, VM_READ_WRITE);
         }
     }
 }

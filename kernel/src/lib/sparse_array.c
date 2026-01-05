@@ -10,7 +10,7 @@ sparse_array_t* sparse_array_create(size_t element_size, size_t total_bytes) {
     phys_addr_t phys = pmm_alloc_page();
     virt_addr_t virt = vmm_alloc(&kernel_allocator, 1);
     printf("phys=%p virt=%p\n", (void*) phys, (void*) virt);
-    vm_map_page(&kernel_allocator, virt, phys, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, convert_vm_protection_basic(VM_PROTECTION_READ_WRITE));
+    vm_map_page(&kernel_allocator, virt, phys, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE);
 
     sparse_array_t* array = (sparse_array_t*) virt;
 
@@ -65,7 +65,7 @@ void* sparse_array_access_demand(sparse_array_t* array, size_t index) {
     phys_addr_t phys_addr = vm_resolve(&kernel_allocator, addr);
     if(phys_addr == 0) {
         phys_addr_t new_page = pmm_alloc_page();
-        vm_map_page(&kernel_allocator, addr, new_page, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, convert_vm_protection_basic(VM_PROTECTION_READ_WRITE));
+        vm_map_page(&kernel_allocator, addr, new_page, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE);
     }
 
     return (void*) addr;

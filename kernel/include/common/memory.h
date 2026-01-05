@@ -15,12 +15,20 @@ typedef enum {
     PAGE_SIZE_HUGE = ARCH_PAGE_SIZE_HUGE
 } page_size_t;
 
+/*
+bit 0: writeable
+bit 1: executable
+bit 2: non-xpresent
+bit 3: global
+bit 4-7: reserved
+*/
 typedef enum {
-    VM_PROTECTION_READ_ONLY,
-    VM_PROTECTION_READ_WRITE,
-    VM_PROTECTION_READ_EXECUTE,
-    VM_PROTECTION_READ_WRITE_EXECUTE,
-} vm_protection_t;
+    VM_READ_ONLY = 0,
+    VM_READ_WRITE = (1 << 0),
+    VM_EXECUTE = (1 << 1),
+    VM_NON_PRESENT = (1 << 2),
+    VM_GLOBAL = (1 << 3),
+} vm_flags_t;
 
 typedef struct {
     bool present    : 1;
@@ -29,9 +37,9 @@ typedef struct {
     bool execute    : 1;
     bool global     : 1;
     bool __reserved : 1;
-} vm_protection_flags_t;
+} vm_flags_data_t;
 
-static_assert(sizeof(vm_protection_flags_t) == sizeof(uint8_t), "vm_protection_flags_t must be 1 byte some dumbass (me) broke it");
+static_assert(sizeof(vm_flags_data_t) == sizeof(uint8_t), "vm_flags_data_t must be 1 byte some dumbass (me) broke it");
 
 typedef enum {
     VM_ACCESS_KERNEL,
@@ -45,7 +53,6 @@ typedef enum {
     VM_CACHE_WRITE_COMBINE
 } vm_cache_t;
 
-vm_protection_flags_t convert_vm_protection_raw(vm_protection_t protection, bool present, bool global);
-vm_protection_flags_t convert_vm_protection_basic(vm_protection_t protection);
+vm_flags_data_t convert_vm_flags(vm_flags_t flags);
 
 const char* limine_memmap_type_to_str(uint64_t type);

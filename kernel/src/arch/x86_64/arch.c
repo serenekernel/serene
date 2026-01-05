@@ -63,7 +63,7 @@ void setup_memory() {
 void setup_uacpi() {
     phys_addr_t phys = pmm_alloc_page();
     virt_addr_t virt = vmm_alloc(&kernel_allocator, 1);
-    vm_map_page(&kernel_allocator, virt, phys, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, convert_vm_protection_basic(VM_PROTECTION_READ_WRITE));
+    vm_map_page(&kernel_allocator, virt, phys, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE);
     if(uacpi_setup_early_table_access((void*) virt, 1 * PAGE_SIZE_DEFAULT) != UACPI_STATUS_OK) {
         printf("uACPI init VERY NOT okay!\n");
         arch_die();
@@ -106,14 +106,10 @@ void arch_init_bsp() {
     while(((port_read_u8(0x64) >> 0) & 1) == 1) port_read_u8(0x60);
 
     virt_addr_t address = vmm_alloc(&kernel_allocator, 1);
-    vm_map_page(&kernel_allocator, address, 0, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, convert_vm_protection_raw(VM_PROTECTION_READ_WRITE, false, false));
-    printf("Allocated page at virtual address: 0x%lx\n", address);
+    vm_map_page(&kernel_allocator, address, 0, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE | VM_NON_PRESENT);
     page_db_entry_t* entry = (page_db_entry_t*) page_db_access_demand(&kernel_allocator, address);
-    printf("Got page db entry at address: %p\n", entry);
     entry->demand = 1;
-    printf("Set demand paging flag\n");
     *((uint8_t*) address) = 0x42;
-    printf("Wrote to allocated page: 0x%02x\n", *((uint8_t*) address));
 
 
     for(size_t i = 0; i < mp_request.response->cpu_count; i++) {

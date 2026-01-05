@@ -45,7 +45,7 @@ void* uacpi_kernel_map(uacpi_phys_addr addr, uacpi_size len) {
 
     virt_addr_t virt_base = vmm_alloc(&kernel_allocator, page_count);
     printf("uacpi mapping 0x%llx -> 0x%llx wanted size 0x%llx got 0x%llx with offset 0x%llx\n", phys_base, virt_base, len, page_count * PAGE_SIZE_DEFAULT, (addr - phys_base));
-    vm_map_pages_continuous(&kernel_allocator, virt_base, phys_base, page_count, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, convert_vm_protection_basic(VM_PROTECTION_READ_WRITE));
+    vm_map_pages_continuous(&kernel_allocator, virt_base, phys_base, page_count, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE);
     printf("dump: 0x%llx\n", mmio_read_u64(virt_base));
     return (void*) (virt_base + (addr - phys_base));
 }
@@ -59,9 +59,19 @@ void uacpi_kernel_unmap(void* addr, uacpi_size len) {
 }
 
 void uacpi_kernel_log(uacpi_log_level level, const uacpi_char* str) {
-    if(level == UACPI_LOG_DEBUG) { printf("uacpi debug %s", str); }
-    if(level == UACPI_LOG_TRACE) { printf("uacpi trace %s", str); }
-    if(level == UACPI_LOG_INFO) { printf("uacpi info %s", str); }
-    if(level == UACPI_LOG_WARN) { printf("uacpi warn %s", str); }
-    if(level == UACPI_LOG_ERROR) { printf("uacpi error %s", str); }
+    if(level == UACPI_LOG_DEBUG) {
+        printf("uacpi debug %s", str);
+    }
+    if(level == UACPI_LOG_TRACE) {
+        printf("uacpi trace %s", str);
+    }
+    if(level == UACPI_LOG_INFO) {
+        printf("uacpi info %s", str);
+    }
+    if(level == UACPI_LOG_WARN) {
+        printf("uacpi warn %s", str);
+    }
+    if(level == UACPI_LOG_ERROR) {
+        printf("uacpi error %s", str);
+    }
 }

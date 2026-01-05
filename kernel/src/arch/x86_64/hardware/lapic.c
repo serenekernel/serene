@@ -98,7 +98,7 @@ static void apic_enable_mode_bsp() {
     assert(cpuid_result + 12 < 64 && "physical address bits + 12 < 64");
 
     apic_base_address = (virt_addr_t) vmm_alloc(&kernel_allocator, 1);
-    vm_map_page(&kernel_allocator, apic_base_address, (msr & 0xFFFFF000), VM_ACCESS_KERNEL, VM_CACHE_WRITE_THROUGH, convert_vm_protection_basic(VM_PROTECTION_READ_WRITE));
+    vm_map_page(&kernel_allocator, apic_base_address, (msr & 0xFFFFF000), VM_ACCESS_KERNEL, VM_CACHE_WRITE_THROUGH, VM_READ_WRITE);
 
     printf("apic base address: 0x%lx\n", apic_base_address);
 }

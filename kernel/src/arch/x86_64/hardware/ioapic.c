@@ -72,7 +72,7 @@ void ioapic_init(uint32_t id, phys_addr_t phys_addr) {
     }
 
     virt_addr_t mmio_virt = vmm_alloc(&kernel_allocator, 1);
-    vm_map_page(&kernel_allocator, mmio_virt, phys_addr, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, convert_vm_protection_basic(VM_PROTECTION_READ_WRITE));
+    vm_map_page(&kernel_allocator, mmio_virt, phys_addr, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE);
 
     ioapic_count++;
     io_apic_t* ioapic = &ioapics[ioapic_count - 1];

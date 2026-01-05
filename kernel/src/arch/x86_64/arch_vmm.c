@@ -142,9 +142,9 @@ uint64_t* next_if_exists(uint64_t* root, int idx) {
     return (uint64_t*) phys_to_hhdm(next_table_phys);
 }
 
-void vm_map_pages_continuous(vm_allocator_t* allocator, virt_addr_t virt_addr, phys_addr_t phys_addr, size_t page_count, vm_access_t access, vm_cache_t cache, vm_protection_flags_t protection) {
+void vm_map_pages_continuous(vm_allocator_t* allocator, virt_addr_t virt_addr, phys_addr_t phys_addr, size_t page_count, vm_access_t access, vm_cache_t cache, vm_flags_t flags) {
     for(size_t i = 0; i < page_count; i++) {
-        vm_map_page(allocator, virt_addr + (i * PAGE_SIZE_DEFAULT), phys_addr + (i * PAGE_SIZE_DEFAULT), access, cache, protection);
+        vm_map_page(allocator, virt_addr + (i * PAGE_SIZE_DEFAULT), phys_addr + (i * PAGE_SIZE_DEFAULT), access, cache, flags);
     }
 }
 
@@ -157,7 +157,8 @@ void vm_unmap_pages_continuous(vm_allocator_t* allocator, virt_addr_t virt_addr,
 }
 
 
-void vm_map_page(vm_allocator_t* allocator, virt_addr_t virt_addr, phys_addr_t phys_addr, vm_access_t access, vm_cache_t cache, vm_protection_flags_t protection) {
+void vm_map_page(vm_allocator_t* allocator, virt_addr_t virt_addr, phys_addr_t phys_addr, vm_access_t access, vm_cache_t cache, vm_flags_t flags) {
+    vm_flags_data_t flags_data = convert_vm_flags(flags);
     arch_memory_barrier();
     uint64_t current_cr3;
     __asm__ volatile("mov %%cr3, %0" : "=r"(current_cr3));
@@ -173,7 +174,7 @@ void vm_map_page(vm_allocator_t* allocator, virt_addr_t virt_addr, phys_addr_t p
     uint64_t* pdpt = next_or_allocate(pml4, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PML4), imtermediate_flags);
     uint64_t* pd = next_or_allocate(pdpt, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PDPT), imtermediate_flags);
     uint64_t* pt = next_or_allocate(pd, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PD), imtermediate_flags);
-    uint64_t page_entry = (phys_addr & SMALL_PAGE_ADDRESS_MASK) | (protection.present ? PAGE_PRESENT_BIT : 0) | (protection.write ? PAGE_RW_BIT : 0) | convert_access_flags(access) | convert_cache_flags(cache, PAGE_SIZE_SMALL);
+    uint64_t page_entry = (phys_addr & SMALL_PAGE_ADDRESS_MASK) | (flags_data.present ? PAGE_PRESENT_BIT : 0) | (flags_data.write ? PAGE_RW_BIT : 0) | convert_access_flags(access) | convert_cache_flags(cache, PAGE_SIZE_SMALL);
 
     uint16_t pt_index = (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PT);
     pt[pt_index] = page_entry;
@@ -181,7 +182,8 @@ void vm_map_page(vm_allocator_t* allocator, virt_addr_t virt_addr, phys_addr_t p
     arch_memory_barrier();
 }
 
-void vm_reprotect_page(vm_allocator_t* allocator, virt_addr_t virt_addr, vm_access_t access, vm_cache_t cache, vm_protection_flags_t protection) {
+void vm_reprotect_page(vm_allocator_t* allocator, virt_addr_t virt_addr, vm_access_t access, vm_cache_t cache, vm_flags_t flags) {
+    vm_flags_data_t flags_data = convert_vm_flags(flags);
     uint64_t imtermediate_flags = PAGE_PRESENT_BIT | PAGE_RW_BIT;
 
     if(access == VM_ACCESS_USER) {
@@ -193,7 +195,7 @@ void vm_reprotect_page(vm_allocator_t* allocator, virt_addr_t virt_addr, vm_acce
     uint64_t* pdpt = next_or_allocate(pml4, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PML4), imtermediate_flags);
     uint64_t* pd = next_or_allocate(pdpt, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PDPT), imtermediate_flags);
     uint64_t* pt = next_or_allocate(pd, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PD), imtermediate_flags);
-    uint64_t page_new_flags = (protection.present ? PAGE_PRESENT_BIT : 0) | (protection.write ? PAGE_RW_BIT : 0) | convert_access_flags(access) | convert_cache_flags(cache, PAGE_SIZE_SMALL);
+    uint64_t page_new_flags = (flags_data.present ? PAGE_PRESENT_BIT : 0) | (flags_data.write ? PAGE_RW_BIT : 0) | convert_access_flags(access) | convert_cache_flags(cache, PAGE_SIZE_SMALL);
 
     uint64_t old_entry = pt[(uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PT)];
     uint64_t page_entry = (old_entry & PAGE_ADDRESS_MASK(PAGE_SIZE_SMALL)) | page_new_flags;

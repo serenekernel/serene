@@ -16,16 +16,18 @@ const char* limine_memmap_type_to_str(uint64_t type) {
     }
 }
 
-vm_protection_flags_t convert_vm_protection_raw(vm_protection_t protection, bool present, bool global) {
-    switch(protection) {
-        case VM_PROTECTION_READ_ONLY:          return (vm_protection_flags_t) { .present = present, .readable = true, .write = false, .execute = false, .global = global };
-        case VM_PROTECTION_READ_WRITE:         return (vm_protection_flags_t) { .present = present, .readable = true, .write = true, .execute = false, .global = global };
-        case VM_PROTECTION_READ_EXECUTE:       return (vm_protection_flags_t) { .present = present, .readable = true, .write = false, .execute = true, .global = global };
-        case VM_PROTECTION_READ_WRITE_EXECUTE: return (vm_protection_flags_t) { .present = present, .readable = true, .write = true, .execute = true, .global = global };
-    }
-    __builtin_unreachable();
-}
+vm_flags_data_t convert_vm_flags(vm_flags_t flags) {
+    bool present = !(flags & VM_NON_PRESENT);
+    bool global = (flags & VM_GLOBAL) != 0;
+    bool write = (flags & VM_READ_WRITE) != 0;
+    bool execute = (flags & VM_EXECUTE) != 0;
 
-vm_protection_flags_t convert_vm_protection_basic(vm_protection_t protection) {
-    return convert_vm_protection_raw(protection, true, false);
+    return (vm_flags_data_t) {
+        .present = present,
+        .readable = true,
+        .write = write,
+        .execute = execute,
+        .global = global,
+        .__reserved = false,
+    };
 }
