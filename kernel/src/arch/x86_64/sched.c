@@ -1,3 +1,4 @@
+#include "arch/cpu_local.h"
 #include "arch/hardware/lapic.h"
 #include "common/arch.h"
 #include "common/interrupts.h"
@@ -10,16 +11,13 @@
 #include <common/spinlock.h>
 #include <memory/vmm.h>
 #include <stdint.h>
+#include <common/cpu_local.h>
 
 typedef struct {
     spinlock_t sched_lock;
     thread_t* idle_thread;
     thread_t* thread_head;
 } scheduler_t;
-
-typedef struct {
-    thread_t* current_thread;
-} kernel_cpu_local_t;
 
 scheduler_t g_scheduler;
 
@@ -42,16 +40,12 @@ void sched_init_bsp() {
     g_scheduler.idle_thread = thread;
     g_scheduler.thread_head = thread;
 
-    kernel_cpu_local_t* kernel_cpu_local = (kernel_cpu_local_t*) vmm_alloc_backed(&kernel_allocator, 1, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true);
-    kernel_cpu_local->current_thread = g_scheduler.idle_thread;
-    __wrmsr(IA32_GS_BASE_MSR, (uint64_t) kernel_cpu_local);
+    CPU_LOCAL_WRITE(current_thread, g_scheduler.idle_thread);
     register_interrupt_handler(0x20, sched_preempt_handler);
 }
 
 void sched_init_ap() {
-    kernel_cpu_local_t* kernel_cpu_local = (kernel_cpu_local_t*) vmm_alloc_backed(&kernel_allocator, 1, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true);
-    kernel_cpu_local->current_thread = g_scheduler.idle_thread;
-    __wrmsr(IA32_GS_BASE_MSR, (uint64_t) kernel_cpu_local);
+    CPU_LOCAL_WRITE(current_thread, g_scheduler.idle_thread);
 }
 
 static uint32_t next_tid = 0;

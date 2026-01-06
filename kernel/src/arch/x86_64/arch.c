@@ -18,6 +18,7 @@
 #include <stdio.h>
 #include <uacpi/internal/tables.h>
 #include <uacpi/status.h>
+#include <common/cpu_local.h>
 
 const char* arch_get_name(void) {
     return "x86_64";
@@ -96,6 +97,7 @@ void setup_arch() {
             highest_apic_id = mp_request.response->cpus[i]->lapic_id;
         }
     }
+    init_cpu_local();
     ipi_init_bsp(highest_apic_id);
     printf("LAPIC INIT OK!\n");
 }
@@ -189,6 +191,7 @@ void arch_init_ap(struct limine_mp_info* info) {
     setup_idt_ap();
     lapic_init_ap();
     spinlock_unlock(&arch_ap_init_lock);
+    init_cpu_local();
 
     enable_interrupts();
     sched_init_ap();
