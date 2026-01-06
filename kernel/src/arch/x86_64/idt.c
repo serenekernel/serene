@@ -96,5 +96,8 @@ void x86_64_dispatch_interupt(interrupt_frame_t* frame) {
         printf("Unhandled interrupt: 0x%02X\n", frame->vector);
     }
 
-    lapic_eoi();
+    // @note: we don't send an for 0x20 as the scheduler handles that
+    if(frame->vector != 0x20) {
+        lapic_eoi();
+    }
 }

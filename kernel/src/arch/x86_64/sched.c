@@ -32,7 +32,6 @@ void idle_thread() {
 void sched_preempt_handler(interrupt_frame_t* frame) {
     (void) frame;
     lapic_eoi();
-    printf("prempt\n\n\n\n");
     sched_yield();
 }
 
