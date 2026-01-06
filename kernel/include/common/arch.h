@@ -9,7 +9,7 @@ void arch_wait_for_interrupt(void);
 void arch_memory_barrier(void);
 void arch_pause();
 
-void arch_panic_int(interrupt_frame* frame);
+void arch_panic_int(interrupt_frame_t* frame);
 
 uint64_t arch_get_flags();
 void arch_set_flags(uint64_t flags);

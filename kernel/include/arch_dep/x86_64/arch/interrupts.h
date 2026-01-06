@@ -6,7 +6,7 @@ typedef struct {
     uint64_t rbp, rdi, rsi, rdx, rcx, rbx, rax;
     uint64_t vector, error;
     uint64_t rip, cs, rflags, rsp, ss;
-} interrupt_frame;
+} interrupt_frame_t;
 
 void setup_idt_bsp();
 void setup_idt_ap();

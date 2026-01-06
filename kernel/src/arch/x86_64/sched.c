@@ -1,7 +1,11 @@
-#include "arch/msr.h"
-#include "common/memory.h"
+#include "arch/hardware/lapic.h"
+#include "common/arch.h"
+#include "common/interrupts.h"
 
+#include <arch/interrupts.h>
+#include <arch/msr.h>
 #include <assert.h>
+#include <common/memory.h>
 #include <common/sched.h>
 #include <common/spinlock.h>
 #include <memory/vmm.h>
@@ -21,8 +25,15 @@ scheduler_t g_scheduler;
 
 void idle_thread() {
     while(1) {
-        sched_yield();
+        arch_pause();
     }
+}
+
+void sched_preempt_handler(interrupt_frame_t* frame) {
+    (void) frame;
+    lapic_eoi();
+    printf("prempt\n\n\n\n");
+    sched_yield();
 }
 
 void sched_init_bsp() {
@@ -35,6 +46,7 @@ void sched_init_bsp() {
     kernel_cpu_local_t* kernel_cpu_local = (kernel_cpu_local_t*) vmm_alloc_backed(&kernel_allocator, 1, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true);
     kernel_cpu_local->current_thread = g_scheduler.idle_thread;
     __wrmsr(IA32_GS_BASE_MSR, (uint64_t) kernel_cpu_local);
+    register_interrupt_handler(0x20, sched_preempt_handler);
 }
 
 void sched_init_ap() {
@@ -43,10 +55,12 @@ void sched_init_ap() {
     __wrmsr(IA32_GS_BASE_MSR, (uint64_t) kernel_cpu_local);
 }
 
+static uint32_t next_tid = 0;
+
 thread_t* sched_thread_init(vm_allocator_t* address_space, virt_addr_t entry_point) {
     thread_t* thread = (thread_t*) vmm_alloc_backed(&kernel_allocator, 1, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true);
     thread->thread_common.process = nullptr;
-    thread->thread_common.tid = 0;
+    thread->thread_common.tid = next_tid++;
     thread->thread_common.address_space = address_space;
     thread->thread_common.sched_next = nullptr;
     thread->thread_common.proc_next = nullptr;
@@ -122,6 +136,7 @@ void sched_yield() {
 
     spinlock_critical_unlock(&g_scheduler.sched_lock, __spin_flag);
 
+    lapic_timer_oneshot_ms(10);
     __context_switch(current_thread, next_thread);
 }
 

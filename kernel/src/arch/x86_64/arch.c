@@ -100,7 +100,7 @@ void setup_arch() {
     printf("LAPIC INIT OK!\n");
 }
 
-void ps2_test(interrupt_frame*) {
+void ps2_test(interrupt_frame_t*) {
     if((port_read_u8(0x64) & 1) == 1) {
         uint8_t scancode = port_read_u8(0x60);
         printf("Scancode: 0x%02x\n", scancode);
@@ -114,21 +114,24 @@ void thread_a() {
     int i = 0;
     while(true) {
         printf("a: %d on %d\n", i++, lapic_get_id());
-        sched_yield();
     }
 }
 void thread_b() {
     int i = 0;
     while(true) {
         printf("b: %d on %d\n", i++, lapic_get_id());
-        sched_yield();
     }
 }
 void thread_c() {
     int i = 0;
     while(true) {
         printf("c: %d on %d\n", i++, lapic_get_id());
-        sched_yield();
+    }
+}
+void thread_d() {
+    int i = 0;
+    while(true) {
+        printf("d: %d on %d\n", i++, lapic_get_id());
     }
 }
 
@@ -157,14 +160,13 @@ void arch_init_bsp() {
     sched_init_bsp();
 
     thread_t* test1 = sched_thread_init(&kernel_allocator, (virt_addr_t) thread_a);
-    test1->thread_common.tid = 1;
     thread_t* test2 = sched_thread_init(&kernel_allocator, (virt_addr_t) thread_b);
-    test2->thread_common.tid = 2;
     thread_t* test3 = sched_thread_init(&kernel_allocator, (virt_addr_t) thread_c);
-    test3->thread_common.tid = 3;
+    thread_t* test4 = sched_thread_init(&kernel_allocator, (virt_addr_t) thread_d);
     sched_add_thread(test1);
     sched_add_thread(test2);
     sched_add_thread(test3);
+    sched_add_thread(test4);
     printf("bsp init yielding\n");
 
     enable_interrupts();
@@ -185,10 +187,12 @@ void arch_init_ap(struct limine_mp_info* info) {
     setup_gdt();
     ipi_init_ap();
     setup_idt_ap();
+    lapic_init_ap();
     spinlock_unlock(&arch_ap_init_lock);
 
     enable_interrupts();
     sched_init_ap();
+
     while(1) {
         sched_yield();
     }

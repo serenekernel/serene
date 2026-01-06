@@ -2,7 +2,7 @@
 
 #include <arch/interrupts.h>
 
-typedef void (*fn_interrupt_handler)(interrupt_frame* frame);
+typedef void (*fn_interrupt_handler)(interrupt_frame_t* frame);
 extern fn_interrupt_handler interrupt_handlers[256];
 
 void register_interrupt_handler(int vector, fn_interrupt_handler handler);

@@ -53,7 +53,7 @@ const char* name_table[22] = { "Divide Error",
                                "Virtualization Exception",
                                "Control Protection Exception" };
 
-__attribute__((noreturn)) void arch_panic_int(interrupt_frame* frame) {
+__attribute__((noreturn)) void arch_panic_int(interrupt_frame_t* frame) {
     disable_interrupts();
     ipi_t ipi;
     ipi.type = IPI_DIE;
