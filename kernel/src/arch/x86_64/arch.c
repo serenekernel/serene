@@ -1,4 +1,5 @@
 #include "arch/hardware/lapic.h"
+#include "arch/msr.h"
 #include "common/interrupts.h"
 #include "common/io.h"
 #include "common/memory.h"
@@ -11,12 +12,17 @@
 #include <arch/interrupts.h>
 #include <common/arch.h>
 #include <common/requests.h>
+#include <common/sched.h>
 #include <common/spinlock.h>
 #include <memory/pagedb.h>
 #include <memory/pmm.h>
 #include <memory/vmm.h>
 #include <stdio.h>
 
+// Forward declarations
+void thread_a(void);
+void thread_b(void);
+void thread_c(void);
 
 const char* arch_get_name(void) {
     return "x86_64";
@@ -105,10 +111,6 @@ void arch_init_bsp() {
     printf("...\n");
     while(((port_read_u8(0x64) >> 0) & 1) == 1) port_read_u8(0x60);
 
-    virt_addr_t address = vmm_alloc_demand(&kernel_allocator, 1, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE);
-    *((uint8_t*) address) = 0x42;
-
-
     for(size_t i = 0; i < mp_request.response->cpu_count; i++) {
         printf("CPU %zu: lapic_id: %u processor_id %u\n", i, mp_request.response->cpus[i]->lapic_id, mp_request.response->cpus[i]->processor_id);
     }
@@ -122,10 +124,24 @@ void arch_init_bsp() {
         mp_request.response->cpus[i]->goto_address = &arch_init_ap;
     }
 
+
+    sched_init();
+
+    thread_t* test1 = sched_thread_init(&kernel_allocator, (virt_addr_t) thread_a);
+    test1->thread_common.tid = 1;
+    thread_t* test2 = sched_thread_init(&kernel_allocator, (virt_addr_t) thread_b);
+    test2->thread_common.tid = 2;
+    thread_t* test3 = sched_thread_init(&kernel_allocator, (virt_addr_t) thread_c);
+    test3->thread_common.tid = 3;
+    sched_add_thread(test1);
+    sched_add_thread(test2);
+    sched_add_thread(test3);
+    printf("bsp init yielding\n");
+
     enable_interrupts();
 
     while(1) {
-        arch_wait_for_interrupt();
+        sched_yield();
     }
 }
 

@@ -21,7 +21,18 @@ isr%1:
     jmp handler_common
 %endmacro
 
+%macro SWAPGS_IF_FROM_RING3 0
+        test qword [rsp + 24], 3
+        jz %%noswap
+        swapgs
+    %%noswap:
+%endmacro
+
 handler_common:
+    cld
+
+    SWAPGS_IF_FROM_RING3
+
     push rax
     push rbx
     push rcx
@@ -56,7 +67,7 @@ handler_common:
     pop rcx
     pop rbx
     pop rax
-
+    SWAPGS_IF_FROM_RING3
     add rsp, 16
     iretq
 
