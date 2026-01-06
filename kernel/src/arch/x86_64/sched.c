@@ -9,6 +9,7 @@
 
 typedef struct {
     spinlock_t sched_lock;
+    thread_t* idle_thread;
     thread_t* thread_head;
 } scheduler_t;
 
@@ -24,36 +25,21 @@ void idle_thread() {
     }
 }
 
-void thread_a() {
-    int i = 0;
-    while(true) {
-        printf("a: %d\n", i++);
-        sched_yield();
-    }
-}
-void thread_b() {
-    int i = 0;
-    while(true) {
-        printf("b: %d\n", i++);
-        sched_yield();
-    }
-}
-void thread_c() {
-    int i = 0;
-    while(true) {
-        printf("c: %d\n", i++);
-        sched_yield();
-    }
-}
-
-void sched_init() {
+void sched_init_bsp() {
     g_scheduler.sched_lock = 0;
     thread_t* thread = sched_thread_init(&kernel_allocator, (virt_addr_t) idle_thread);
     thread->thread_common.tid = 0;
+    g_scheduler.idle_thread = thread;
     g_scheduler.thread_head = thread;
 
     kernel_cpu_local_t* kernel_cpu_local = (kernel_cpu_local_t*) vmm_alloc_backed(&kernel_allocator, 1, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true);
-    kernel_cpu_local->current_thread = g_scheduler.thread_head;
+    kernel_cpu_local->current_thread = g_scheduler.idle_thread;
+    __wrmsr(IA32_GS_BASE_MSR, (uint64_t) kernel_cpu_local);
+}
+
+void sched_init_ap() {
+    kernel_cpu_local_t* kernel_cpu_local = (kernel_cpu_local_t*) vmm_alloc_backed(&kernel_allocator, 1, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true);
+    kernel_cpu_local->current_thread = g_scheduler.idle_thread;
     __wrmsr(IA32_GS_BASE_MSR, (uint64_t) kernel_cpu_local);
 }
 

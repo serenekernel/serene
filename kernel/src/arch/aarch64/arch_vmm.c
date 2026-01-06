@@ -1,8 +1,8 @@
-#include "common/memory.h"
-#include "memory/pmm.h"
-
 #include <common/arch.h>
+#include <common/ipi.h>
+#include <common/memory.h>
 #include <common/requests.h>
+#include <memory/pmm.h>
 #include <memory/vmm.h>
 #include <string.h>
 
@@ -122,14 +122,18 @@ uint64_t* next_or_allocate(uint64_t* root, int idx, uint64_t flags) {
 }
 
 uint64_t* next_if_exists(uint64_t* root, int idx) {
-    if(!(root[idx] & DESC_VALID)) { return NULL; }
+    if(!(root[idx] & DESC_VALID)) {
+        return NULL;
+    }
 
     phys_addr_t next_table_phys = root[idx] & DESC_TABLE_ADDR_MASK;
     return (uint64_t*) phys_to_hhdm(next_table_phys);
 }
 
 void vm_map_pages_continuous(vm_allocator_t* allocator, virt_addr_t virt_addr, phys_addr_t phys_addr, size_t page_count, vm_access_t access, vm_cache_t cache, vm_protection_flags_t protection) {
-    for(size_t i = 0; i < page_count; i++) { vm_map_page(allocator, virt_addr + (i * PAGE_SIZE_DEFAULT), phys_addr + (i * PAGE_SIZE_DEFAULT), access, cache, protection); }
+    for(size_t i = 0; i < page_count; i++) {
+        vm_map_page(allocator, virt_addr + (i * PAGE_SIZE_DEFAULT), phys_addr + (i * PAGE_SIZE_DEFAULT), access, cache, protection);
+    }
 }
 
 void vm_map_page(vm_allocator_t* allocator, virt_addr_t virt_addr, phys_addr_t phys_addr, vm_access_t access, vm_cache_t cache, vm_protection_flags_t protection) {
@@ -143,16 +147,24 @@ void vm_map_page(vm_allocator_t* allocator, virt_addr_t virt_addr, phys_addr_t p
     uint64_t* l3 = next_or_allocate(l2, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_L2), intermediate_flags);
 
     uint64_t page_entry = (phys_addr & DESC_PAGE_ADDR_MASK);
-    if(protection.present) { page_entry |= DESC_VALID | DESC_PAGE; }
+    if(protection.present) {
+        page_entry |= DESC_VALID | DESC_PAGE;
+    }
     page_entry |= DESC_AF;
     page_entry |= convert_access_flags(access, protection.write);
     page_entry |= convert_cache_flags(cache);
-    if(cache == VM_CACHE_NORMAL || cache == VM_CACHE_WRITE_THROUGH) { page_entry |= DESC_SH_INNER_SHAREABLE; }
+    if(cache == VM_CACHE_NORMAL || cache == VM_CACHE_WRITE_THROUGH) {
+        page_entry |= DESC_SH_INNER_SHAREABLE;
+    }
     if(!protection.execute) {
         page_entry |= DESC_UXN | DESC_PXN;
     } else {
-        if(access == VM_ACCESS_KERNEL) { page_entry |= DESC_UXN; }
-        if(access == VM_ACCESS_USER) { page_entry |= DESC_PXN; }
+        if(access == VM_ACCESS_KERNEL) {
+            page_entry |= DESC_UXN;
+        }
+        if(access == VM_ACCESS_USER) {
+            page_entry |= DESC_PXN;
+        }
     }
 
     l3[(uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_L3)] = page_entry;
@@ -171,21 +183,29 @@ void vm_reprotect_page(vm_allocator_t* allocator, virt_addr_t virt_addr, vm_acce
     uint64_t old_entry = l3[(uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_L3)];
     uint64_t page_entry = (old_entry & DESC_PAGE_ADDR_MASK);
 
-    if(protection.present) { page_entry |= DESC_VALID | DESC_PAGE; }
+    if(protection.present) {
+        page_entry |= DESC_VALID | DESC_PAGE;
+    }
 
     page_entry |= DESC_AF;
     page_entry |= convert_access_flags(access, protection.write);
     page_entry |= convert_cache_flags(cache);
 
-    if(cache == VM_CACHE_NORMAL || cache == VM_CACHE_WRITE_THROUGH) { page_entry |= DESC_SH_INNER_SHAREABLE; }
+    if(cache == VM_CACHE_NORMAL || cache == VM_CACHE_WRITE_THROUGH) {
+        page_entry |= DESC_SH_INNER_SHAREABLE;
+    }
 
     if(!protection.execute) {
         page_entry |= DESC_UXN | DESC_PXN;
     } else {
-        if(access == VM_ACCESS_KERNEL) { page_entry |= DESC_UXN; }
+        if(access == VM_ACCESS_KERNEL) {
+            page_entry |= DESC_UXN;
+        }
     }
 
-    if(!protection.global) { page_entry |= (1ULL << 11); }
+    if(!protection.global) {
+        page_entry |= (1ULL << 11);
+    }
 
     l3[(uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_L3)] = page_entry;
     vm_flush_page_dispatch(virt_addr);
@@ -196,16 +216,24 @@ phys_addr_t vm_resolve(vm_allocator_t* allocator, virt_addr_t virt_addr) {
     uint64_t* l0 = (uint64_t*) phys_to_hhdm(page_table_base);
 
     uint64_t* l1 = next_if_exists(l0, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_L0));
-    if(l1 == NULL) { return 0; }
+    if(l1 == NULL) {
+        return 0;
+    }
 
     uint64_t* l2 = next_if_exists(l1, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_L1));
-    if(l2 == NULL) { return 0; }
+    if(l2 == NULL) {
+        return 0;
+    }
 
     uint64_t* l3 = next_if_exists(l2, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_L2));
-    if(l3 == NULL) { return 0; }
+    if(l3 == NULL) {
+        return 0;
+    }
 
     uint64_t page_entry = l3[(uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_L3)];
-    if(!(page_entry & DESC_VALID)) { return 0; }
+    if(!(page_entry & DESC_VALID)) {
+        return 0;
+    }
 
     return page_entry & DESC_PAGE_ADDR_MASK;
 }
@@ -215,20 +243,28 @@ void vm_unmap_page(vm_allocator_t* allocator, virt_addr_t virt_addr) {
     uint64_t* l0 = (uint64_t*) phys_to_hhdm(page_table_base);
 
     uint64_t* l1 = next_if_exists(l0, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_L0));
-    if(l1 == NULL) { return; }
+    if(l1 == NULL) {
+        return;
+    }
 
     uint64_t* l2 = next_if_exists(l1, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_L1));
-    if(l2 == NULL) { return; }
+    if(l2 == NULL) {
+        return;
+    }
 
     uint64_t* l3 = next_if_exists(l2, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_L2));
-    if(l3 == NULL) { return; }
+    if(l3 == NULL) {
+        return;
+    }
 
     l3[(uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_L3)] = 0;
-    vm_flush_page_dispatch(virt_addr);
+    vm_flush_page_dispatch(virt_addr, 1);
 }
 
 void vm_unmap_pages_continuous(vm_allocator_t* allocator, virt_addr_t virt_addr, size_t page_count) {
-    for(size_t i = 0; i < page_count; i++) { vm_unmap_page(allocator, virt_addr + (i * PAGE_SIZE_DEFAULT)); }
+    for(size_t i = 0; i < page_count; i++) {
+        vm_unmap_page(allocator, virt_addr + (i * PAGE_SIZE_DEFAULT));
+    }
 }
 
 void vm_flush_page_raw(virt_addr_t addr) {
@@ -241,7 +277,10 @@ void vm_flush_page_raw(virt_addr_t addr) {
 
 void vm_flush_page_dispatch(virt_addr_t addr) {
     vm_flush_page_raw(addr);
-    // TODO: IPI broadcast for TLB flush on other cores
+    ipi_t ipi;
+    ipi.type = IPI_TLB_FLUSH;
+    ipi.tlb_flush.virt_addr = addr;
+    ipi_broadcast(&ipi);
 }
 
 static inline void __setup_mair() {

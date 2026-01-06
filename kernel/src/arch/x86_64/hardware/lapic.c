@@ -126,6 +126,28 @@ void lapic_write(uint32_t reg, uint32_t value) {
     }
 }
 
+uint64_t lapic_read64(uint32_t reg) {
+    if(x2apic_mode) {
+        return (uint32_t) __rdmsr(IA32_X2APIC_BASE_MSR + (reg >> 4));
+    } else {
+        // @todo: im sure this doesn't work for ALL registers
+        uint64_t val = 0;
+        val |= (uint64_t) mmio_read_u32(apic_base_address + reg);
+        val |= (uint64_t) mmio_read_u32(apic_base_address + (reg + 0x10)) << 32;
+        return val;
+    }
+}
+
+void lapic_write64(uint32_t reg, uint64_t value) {
+    if(x2apic_mode) {
+        __wrmsr(IA32_X2APIC_BASE_MSR + (reg >> 4), value);
+    } else {
+        // @todo: im sure this doesn't work for ALL registers
+        mmio_write_u32(apic_base_address + reg, (value & 0xFFFFFFFF));
+        mmio_write_u32(apic_base_address + (reg + 0x10), (value >> 32));
+    }
+}
+
 
 uint32_t lapic_get_id() {
     if(x2apic_mode) {
@@ -184,4 +206,56 @@ void lapic_init_ap() {
     lapic_configure();
     lapic_timer_init_ap();
     printf("initialized in %s mode for lapic %d\n", x2apic_mode ? "x2APIC" : "xAPIC", lapic_get_id());
+}
+
+void lapic_send_raw_ipi(uint32_t apic_id, uint8_t vector) {
+    uint64_t icr = 0;
+
+    if(x2apic_mode) {
+        // for x2apic, the destination field is bits 63-32
+        icr |= (((uint64_t) apic_id) << 32);
+    } else {
+        // for xapic, the destination field is bits 63-56
+        icr |= (((uint64_t) apic_id) << 56);
+    }
+
+    icr |= LAPIC_SHORTHAND_NONE;
+    icr |= LAPIC_TRIGGER_EDGE;
+    icr |= LAPIC_LEVEL_DEASSERT;
+    icr |= LAPIC_DESTMODE_PHYSICAL;
+    icr |= LAPIC_DELMODE_FIXED;
+    icr |= vector;
+
+
+    if(x2apic_mode) {
+        lapic_write64(LAPIC_X2APIC_ICR, icr);
+    } else {
+        lapic_write64(LAPIC_ICR_LOW, icr);
+
+        while(lapic_read(LAPIC_ICR_LOW) & (1 << 12)) {
+            __builtin_ia32_pause();
+        }
+    }
+}
+
+void lapic_broadcast_raw_ipi(uint8_t vector) {
+    uint64_t icr = 0;
+
+    icr |= LAPIC_SHORTHAND_ALL_EXCL_SELF;
+    icr |= LAPIC_TRIGGER_EDGE;
+    icr |= LAPIC_LEVEL_DEASSERT;
+    icr |= LAPIC_DESTMODE_PHYSICAL;
+    icr |= LAPIC_DELMODE_FIXED;
+    icr |= vector;
+
+
+    if(x2apic_mode) {
+        lapic_write64(LAPIC_X2APIC_ICR, icr);
+    } else {
+        lapic_write64(LAPIC_ICR_LOW, icr);
+
+        while(lapic_read(LAPIC_ICR_LOW) & (1 << 12)) {
+            __builtin_ia32_pause();
+        }
+    }
 }

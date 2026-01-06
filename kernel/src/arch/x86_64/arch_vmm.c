@@ -1,13 +1,13 @@
-#include "common/memory.h"
-#include "memory/pmm.h"
-#include "rbtree.h"
-
 #include <arch/cpuid.h>
 #include <arch/msr.h>
 #include <common/arch.h>
+#include <common/ipi.h>
+#include <common/memory.h>
 #include <common/requests.h>
 #include <memory/pagedb.h>
+#include <memory/pmm.h>
 #include <memory/vmm.h>
+#include <rbtree.h>
 #include <string.h>
 
 typedef struct {
@@ -161,8 +161,6 @@ void vm_unmap_pages_continuous(vm_allocator_t* allocator, virt_addr_t virt_addr,
 void vm_map_page(vm_allocator_t* allocator, virt_addr_t virt_addr, phys_addr_t phys_addr, vm_access_t access, vm_cache_t cache, vm_flags_t flags) {
     vm_flags_data_t flags_data = convert_vm_flags(flags);
     arch_memory_barrier();
-    uint64_t current_cr3;
-    __asm__ volatile("mov %%cr3, %0" : "=r"(current_cr3));
 
     uint64_t imtermediate_flags = PAGE_PRESENT_BIT | PAGE_RW_BIT;
 
@@ -179,7 +177,6 @@ void vm_map_page(vm_allocator_t* allocator, virt_addr_t virt_addr, phys_addr_t p
 
     uint16_t pt_index = (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PT);
     pt[pt_index] = page_entry;
-    vm_flush_page_dispatch(virt_addr);
     arch_memory_barrier();
 }
 
@@ -263,7 +260,10 @@ void vm_flush_page_raw(virt_addr_t addr) {
 
 void vm_flush_page_dispatch(virt_addr_t addr) {
     vm_flush_page_raw(addr);
-    // ipi_broadcast_command(&(ipi_command_t){ .type = IPI_COMMAND_TYPE_TLB_FLUSH, .tlb = { .address = addr, .page_count = page_count } });
+    ipi_t ipi;
+    ipi.type = IPI_TLB_FLUSH;
+    ipi.tlb_flush.virt_addr = addr;
+    ipi_broadcast(&ipi);
 }
 
 #define PAT_UNCACHEABLE 0

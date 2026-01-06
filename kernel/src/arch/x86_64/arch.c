@@ -1,28 +1,23 @@
-#include "arch/hardware/lapic.h"
-#include "arch/msr.h"
-#include "common/interrupts.h"
-#include "common/io.h"
-#include "common/memory.h"
-#include "limine.h"
-#include "sparse_array.h"
-#include "uacpi/internal/tables.h"
-#include "uacpi/status.h"
-
 #include <arch/gdt.h>
+#include <arch/hardware/lapic.h>
 #include <arch/interrupts.h>
+#include <arch/msr.h>
 #include <common/arch.h>
+#include <common/interrupts.h>
+#include <common/io.h>
+#include <common/ipi.h>
+#include <common/memory.h>
 #include <common/requests.h>
 #include <common/sched.h>
 #include <common/spinlock.h>
+#include <limine.h>
 #include <memory/pagedb.h>
 #include <memory/pmm.h>
 #include <memory/vmm.h>
+#include <sparse_array.h>
 #include <stdio.h>
-
-// Forward declarations
-void thread_a(void);
-void thread_b(void);
-void thread_c(void);
+#include <uacpi/internal/tables.h>
+#include <uacpi/status.h>
 
 const char* arch_get_name(void) {
     return "x86_64";
@@ -90,6 +85,18 @@ void setup_arch() {
     }
 
     lapic_init_bsp();
+    uint32_t highest_apic_id = 0;
+    // :(
+    for(size_t i = 0; i < mp_request.response->cpu_count; i++) {
+        if(mp_request.response->cpus[i]->lapic_id == lapic_get_id()) {
+            continue;
+        }
+
+        if(mp_request.response->cpus[i]->lapic_id > highest_apic_id) {
+            highest_apic_id = mp_request.response->cpus[i]->lapic_id;
+        }
+    }
+    ipi_init_bsp(highest_apic_id);
     printf("LAPIC INIT OK!\n");
 }
 
@@ -102,6 +109,28 @@ void ps2_test(interrupt_frame*) {
 
 static spinlock_t arch_ap_init_lock = {};
 void arch_init_ap(struct limine_mp_info* info);
+
+void thread_a() {
+    int i = 0;
+    while(true) {
+        printf("a: %d on %d\n", i++, lapic_get_id());
+        sched_yield();
+    }
+}
+void thread_b() {
+    int i = 0;
+    while(true) {
+        printf("b: %d on %d\n", i++, lapic_get_id());
+        sched_yield();
+    }
+}
+void thread_c() {
+    int i = 0;
+    while(true) {
+        printf("c: %d on %d\n", i++, lapic_get_id());
+        sched_yield();
+    }
+}
 
 void arch_init_bsp() {
     setup_memory();
@@ -125,7 +154,7 @@ void arch_init_bsp() {
     }
 
 
-    sched_init();
+    sched_init_bsp();
 
     thread_t* test1 = sched_thread_init(&kernel_allocator, (virt_addr_t) thread_a);
     test1->thread_common.tid = 1;
@@ -154,13 +183,14 @@ void arch_init_ap(struct limine_mp_info* info) {
     printf("ap didn't kill itself\n");
 
     setup_gdt();
+    ipi_init_ap();
     setup_idt_ap();
     spinlock_unlock(&arch_ap_init_lock);
 
     enable_interrupts();
-
+    sched_init_ap();
     while(1) {
-        arch_wait_for_interrupt();
+        sched_yield();
     }
 }
 

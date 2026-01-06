@@ -1,11 +1,10 @@
-#include "arch/hardware/lapic.h"
-#include "common/arch.h"
-#include "common/interrupts.h"
-#include "common/memory.h"
-#include "memory/vmm.h"
-
 #include <arch/gdt.h>
 #include <arch/hardware/lapic.h>
+#include <common/arch.h>
+#include <common/interrupts.h>
+#include <common/ipi.h>
+#include <common/memory.h>
+#include <memory/vmm.h>
 #include <stdint.h>
 
 typedef struct {
@@ -63,6 +62,9 @@ void setup_idt_ap() {
     __load_idt(&idtr);
 }
 
+const ipi_t* ipi_get(uint32_t cpu_id);
+void ipi_ack(uint32_t cpu_id);
+
 void x86_64_dispatch_interupt(interrupt_frame* frame) {
     (void) frame;
     printf("Interrupt received: 0x%02X on lapic %u\n", frame->vector, lapic_get_id());
@@ -77,6 +79,14 @@ void x86_64_dispatch_interupt(interrupt_frame* frame) {
             }
         }
         arch_panic_int(frame);
+    }
+
+    if(frame->vector == 0xf0) {
+        const ipi_t* ipi = ipi_get(lapic_get_id());
+        ipi_handle(ipi);
+        ipi_ack(lapic_get_id());
+        lapic_eoi();
+        return;
     }
 
     if(interrupt_handlers[frame->vector]) {

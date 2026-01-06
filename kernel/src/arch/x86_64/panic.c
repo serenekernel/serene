@@ -1,3 +1,5 @@
+#include "common/ipi.h"
+
 #include <arch/hardware/lapic.h>
 #include <common/arch.h>
 #include <common/interrupts.h>
@@ -52,9 +54,10 @@ const char* name_table[22] = { "Divide Error",
                                "Control Protection Exception" };
 
 __attribute__((noreturn)) void arch_panic_int(interrupt_frame* frame) {
-    // ipi_broadcast_command(&(ipi_command_t) { .type = IPI_COMMAND_TYPE_SHUTDOWN });
-
     disable_interrupts();
+    ipi_t ipi;
+    ipi.type = IPI_DIE;
+    ipi_broadcast_async(&ipi);
     int apic_id = lapic_get_id();
 
     printf("\non core %d\n", apic_id);
