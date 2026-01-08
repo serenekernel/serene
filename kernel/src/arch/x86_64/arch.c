@@ -2,7 +2,9 @@
 #include <arch/hardware/lapic.h>
 #include <arch/interrupts.h>
 #include <arch/msr.h>
+#include <arch/userspace.h>
 #include <common/arch.h>
+#include <common/cpu_local.h>
 #include <common/interrupts.h>
 #include <common/io.h>
 #include <common/ipi.h>
@@ -18,8 +20,6 @@
 #include <stdio.h>
 #include <uacpi/internal/tables.h>
 #include <uacpi/status.h>
-#include <common/cpu_local.h>
-#include <arch/userspace.h>
 
 const char* arch_get_name(void) {
     return "x86_64";
@@ -175,16 +175,16 @@ void arch_init_bsp() {
     printf("bsp init yielding\n");
 
     // lord forgive me
-    uint8_t um_test[] = { 0xb8, 0x01, 0x00, 0x00, 0x00, 0x0f, 0x05, 0xcc };
-    vm_allocator_t* allocator = (vm_allocator_t*)vmm_alloc_backed(&kernel_allocator, 1, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true);
+    uint8_t um_test[] = { 0xbf, 0xbe, 0xba, 0xfe, 0xca, 0x0f, 0x05, 0xcc };
+    vm_allocator_t* allocator = (vm_allocator_t*) vmm_alloc_backed(&kernel_allocator, 1, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true);
     vmm_user_init(allocator, 0x40000000, 0x50000000);
     vm_address_space_switch(allocator);
-    void* um_entry = (void*)vmm_alloc_backed(allocator, 1, VM_ACCESS_USER, VM_CACHE_NORMAL, VM_READ_WRITE | VM_EXECUTE, true);
+    void* um_entry = (void*) vmm_alloc_backed(allocator, 1, VM_ACCESS_USER, VM_CACHE_NORMAL, VM_READ_WRITE | VM_EXECUTE, true);
 
     memcpy(um_entry, um_test, sizeof(um_test));
     vm_address_space_switch(&kernel_allocator);
 
-    thread_t* thread = sched_thread_user_init(allocator, (virt_addr_t)um_entry);
+    thread_t* thread = sched_thread_user_init(allocator, (virt_addr_t) um_entry);
     sched_add_thread(thread);
     enable_interrupts();
 

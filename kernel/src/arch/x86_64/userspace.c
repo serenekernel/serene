@@ -18,11 +18,5 @@ void userspace_init() {
 }
 
 void dispatch_syscall(uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4, uint64_t arg5) {
-    (void)arg0;
-    (void)arg1;
-    (void)arg2;
-    (void)arg3;
-    (void)arg4;
-    (void)arg5;
-    printf("syscall!\n");
+    printf("syscall! 0x%llx, 0x%llx, 0x%llx, 0x%llx, 0x%llx, 0x%llx, 0x%llx\n", arg0, arg1, arg2, arg3, arg4, arg5);
 }

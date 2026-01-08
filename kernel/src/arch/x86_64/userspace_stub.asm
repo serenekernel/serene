@@ -21,8 +21,11 @@ __handle_syscall:
     push r14
     push r15
 
-    ; syscall passes args via rdi, rsi, rdx, r10, r8, r9
-    ; sysv exepects the args to be in rdi, rsi, rdx, rcx, r8, r9
+    
+    ; the sysv exepects the args to be in rdi, rsi, rdx, rcx, r8, r9
+    ; where rdi is the syscall number and another other args are general purpose
+
+    ; but syscall clobbers rcx so we make usermode programs deal with amd's bullshit
     mov rcx, r10
 
     sti

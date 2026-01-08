@@ -7,12 +7,12 @@
 #include <arch/interrupts.h>
 #include <arch/msr.h>
 #include <assert.h>
+#include <common/cpu_local.h>
 #include <common/memory.h>
 #include <common/sched.h>
 #include <common/spinlock.h>
 #include <memory/vmm.h>
 #include <stdint.h>
-#include <common/cpu_local.h>
 
 typedef struct {
     spinlock_t sched_lock;
@@ -84,6 +84,7 @@ void __context_switch(thread_t* old_thread, thread_t* new_thread);
 void __userspace_init();
 
 thread_t* sched_thread_user_init(vm_allocator_t* address_space, virt_addr_t entry_point) {
+    assert(address_space->kernel_paging_structures_base != 0 && "cr3 for task is 0");
     thread_t* thread = (thread_t*) vmm_alloc_backed(&kernel_allocator, 1, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true);
     thread->thread_common.process = nullptr;
     thread->thread_common.tid = next_tid++;
@@ -99,7 +100,7 @@ thread_t* sched_thread_user_init(vm_allocator_t* address_space, virt_addr_t entr
     uint64_t* stack = (uint64_t*) thread->syscall_rsp;
     *(--stack) = thread->thread_rsp; // user rsp (set by __userspace_init)
     *(--stack) = entry_point; // rcx (where sysret will jump to - set by __userspace_init)
-    *(--stack) = (virt_addr_t)__userspace_init; // r14
+    *(--stack) = (virt_addr_t) __userspace_init; // r14
     *(--stack) = 0; // r15
     *(--stack) = 0; // r14
     *(--stack) = 0; // r13

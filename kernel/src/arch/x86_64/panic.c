@@ -60,7 +60,6 @@ __attribute__((noreturn)) void arch_panic_int(interrupt_frame_t* frame) {
     ipi_broadcast_async(&ipi);
     int apic_id = lapic_get_id();
 
-    printf("\non core %d\n", apic_id);
 
     if(frame->vector == 0x0E) {
         int page_protection_violation = ((frame->error & 0b00000001) > 0);
@@ -71,14 +70,14 @@ __attribute__((noreturn)) void arch_panic_int(interrupt_frame_t* frame) {
         int protection_key = ((frame->error & 0b00100000) > 0);
         int shadow_stack = ((frame->error & 0b01000000) > 0);
         int sgx = ((frame->error & 0b0100000000000000) > 0);
-        printf("Page fault @ 0x%016llx [ppv=%d, write=%d, ring3=%d, resv=%d, fetch=%d, pk=%d, ss=%d, sgx=%d]\n", __read_cr2(), page_protection_violation, write_access, user_mode, reserved_bit, instruction_fetch, protection_key, shadow_stack, sgx);
+        printf("Page fault @ 0x%016llx [ppv=%d, write=%d, ring3=%d, resv=%d, fetch=%d, pk=%d, ss=%d, sgx=%d]", __read_cr2(), page_protection_violation, write_access, user_mode, reserved_bit, instruction_fetch, protection_key, shadow_stack, sgx);
     } else if(frame->vector == 0x0D) {
         if(frame->error == 0) {
-            printf("General Protection Fault (0x%x | no error code)\n", frame->vector);
+            printf("General Protection Fault (0x%x | no error code)", frame->vector);
         } else {
             printf("General Protection Fault (0x%x | %d)", frame->vector, frame->error);
             if(frame->error & 0x1) {
-                printf("  [external event]\n");
+                printf("  [external event]");
             }
             if(frame->error & 0x2) {
                 printf(" [idt]");
@@ -87,14 +86,14 @@ __attribute__((noreturn)) void arch_panic_int(interrupt_frame_t* frame) {
             } else {
                 printf(" [ldt]");
             }
-            printf(" [index=0x%x]", frame->error & 0xFFF8);
-            printf("\n");
+            printf(" [index=0x%x]", (frame->error & 0xFFF8) >> 4);
         }
     } else if(frame->vector <= 21) {
-        printf("%s (0x%x | %d)\n", name_table[frame->vector], frame->vector, frame->error);
+        printf("%s (0x%x | %d)", name_table[frame->vector], frame->vector, frame->error);
     } else {
-        printf("unknown (0x%x | %d)\n", frame->vector, frame->error);
+        printf("unknown (0x%x | %d)", frame->vector, frame->error);
     }
+    printf(" on core %d\n", apic_id);
 
     printf("rax = 0x%016llx, rbx = 0x%016llx\n", frame->rax, frame->rbx);
     printf("rcx = 0x%016llx, rdx = 0x%016llx\n", frame->rcx, frame->rdx);

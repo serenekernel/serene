@@ -326,6 +326,7 @@ void vm_address_space_switch(vm_allocator_t* allocator) {
 }
 
 void vm_paging_setup_user(vm_allocator_t* allocator) {
+    allocator->kernel_paging_structures_base = __alloc_entry();
     uint64_t* pml4_kernel = (uint64_t*) phys_to_hhdm(kernel_allocator.kernel_paging_structures_base);
     uint64_t* pml4_user = (uint64_t*) phys_to_hhdm(allocator->kernel_paging_structures_base);
 
