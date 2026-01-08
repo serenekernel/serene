@@ -41,18 +41,18 @@ void setup_idt_bsp() {
 
     for(int i = 0; i < 256; ++i) {
         void (*handler)() = x86_isr_stub_table[i];
-        set_idtr_entry(i, handler, 0x8F, 0);
+        set_idtr_entry(i, handler, 0x8E, 0);
     }
 
     // #BP
-    set_idtr_entry(0x03, x86_isr_stub_table[0x03], 0xEF, 0);
+    set_idtr_entry(0x03, x86_isr_stub_table[0x03], 0xEE, 0);
 
     // #NMI
-    set_idtr_entry(0x02, x86_isr_stub_table[0x02], 0x8F, 1);
+    set_idtr_entry(0x02, x86_isr_stub_table[0x02], 0x8E, 1);
     // #DF
-    set_idtr_entry(0x08, x86_isr_stub_table[0x08], 0x8F, 2);
+    set_idtr_entry(0x08, x86_isr_stub_table[0x08], 0x8E, 2);
     // #MC
-    set_idtr_entry(0x12, x86_isr_stub_table[0x12], 0x8F, 3);
+    set_idtr_entry(0x12, x86_isr_stub_table[0x12], 0x8E, 3);
 
     __load_idt(&idtr);
 }
