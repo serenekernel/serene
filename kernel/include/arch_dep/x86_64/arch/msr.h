@@ -16,6 +16,15 @@
 #define IA32_GS_BASE_MSR 0xC0000101
 #define IA32_KERNEL_GS_BASE_MSR 0xC0000102
 
+// extended feature enable register
+#define IA32_EFER 0xC0000080
+
+// syscall stuff
+#define IA32_STAR   0xC0000081
+#define IA32_LSTAR  0xC0000082
+#define IA32_CSTAR  0xC0000083
+#define IA32_SFMASK 0xC0000084
+
 
 [[nodiscard]] uint64_t __rdmsr(uint32_t msr);
 void __wrmsr(uint32_t msr, uint64_t value);
