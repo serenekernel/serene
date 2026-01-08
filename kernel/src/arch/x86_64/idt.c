@@ -44,6 +44,9 @@ void setup_idt_bsp() {
         set_idtr_entry(i, handler, 0x8F, 0);
     }
 
+    // #BP
+    set_idtr_entry(0x03, x86_isr_stub_table[0x03], 0xEF, 0);
+
     // #NMI
     set_idtr_entry(0x02, x86_isr_stub_table[0x02], 0x8F, 1);
     // #DF
