@@ -34,11 +34,12 @@ __context_switch:
 
 global __userspace_init
 __userspace_init:
-    mov rcx, rdi    
+    pop rcx ; address to sysret
     cli
     swapgs
 
-    mov rsp, rsi
+    pop rax ; userspace stack pointer
+    mov rsp, rax
 
     xor rax, rax
     xor rbx, rbx

@@ -1,0 +1,56 @@
+global __handle_syscall
+extern dispatch_syscall
+__handle_syscall:
+    swapgs
+
+    mov r15, qword [gs:0]
+    mov qword [r15 + 8], rsp
+    mov rsp, qword [r15 + 16]
+
+    push rcx
+    push rdx
+    push rbp
+    push rsi
+    push rdi
+    push r8
+    push r9
+    push r10
+    push r11
+    push r12
+    push r13
+    push r14
+    push r15
+
+    ; syscall passes args via rdi, rsi, rdx, r10, r8, r9
+    ; sysv exepects the args to be in rdi, rsi, rdx, rcx, r8, r9
+    mov rcx, r10
+
+    sti
+    call dispatch_syscall
+    cli
+
+    mov rbx, rdx ; we can't use rdx :(
+
+    xor r12, r12
+    mov r12, ds
+    mov r12, es
+
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop r11
+    pop r10
+    pop r9
+    pop r8
+    pop rdi
+    pop rsi
+    pop rbp
+    pop rdx
+    pop rcx
+
+    mov rsp, qword [r15 + 8]
+    xor r15, r15
+
+    swapgs
+    o64 sysret

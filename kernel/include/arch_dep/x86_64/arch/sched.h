@@ -13,3 +13,4 @@ typedef struct {
 } __attribute__((packed)) thread_t;
 
 static_assert(offsetof(thread_t, syscall_rsp) == 0x08, "syscall_rsp must be at offset 0x08");
+static_assert(offsetof(thread_t, kernel_rsp) == 0x10, "kernel_rsp must be at offset 0x10");

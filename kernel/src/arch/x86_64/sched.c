@@ -1,4 +1,5 @@
 #include "arch/cpu_local.h"
+#include "arch/gdt.h"
 #include "arch/hardware/lapic.h"
 #include "common/arch.h"
 #include "common/interrupts.h"
@@ -35,7 +36,7 @@ void sched_preempt_handler(interrupt_frame_t* frame) {
 
 void sched_init_bsp() {
     g_scheduler.sched_lock = 0;
-    thread_t* thread = sched_thread_init(&kernel_allocator, (virt_addr_t) idle_thread);
+    thread_t* thread = sched_thread_kernel_init((virt_addr_t) idle_thread);
     thread->thread_common.tid = 0;
     g_scheduler.idle_thread = thread;
     g_scheduler.thread_head = thread;
@@ -50,11 +51,11 @@ void sched_init_ap() {
 
 static uint32_t next_tid = 0;
 
-thread_t* sched_thread_init(vm_allocator_t* address_space, virt_addr_t entry_point) {
+thread_t* sched_thread_kernel_init(virt_addr_t entry_point) {
     thread_t* thread = (thread_t*) vmm_alloc_backed(&kernel_allocator, 1, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true);
     thread->thread_common.process = nullptr;
     thread->thread_common.tid = next_tid++;
-    thread->thread_common.address_space = address_space;
+    thread->thread_common.address_space = &kernel_allocator;
     thread->thread_common.sched_next = nullptr;
     thread->thread_common.proc_next = nullptr;
     thread->thread_rsp = vmm_alloc_backed(&kernel_allocator, 4, VM_ACCESS_USER, VM_CACHE_NORMAL, VM_READ_WRITE, true) + (4 * PAGE_SIZE_DEFAULT);
@@ -80,7 +81,36 @@ thread_t* sched_thread_init(vm_allocator_t* address_space, virt_addr_t entry_poi
 }
 
 void __context_switch(thread_t* old_thread, thread_t* new_thread);
-void __userspace_init(virt_addr_t user_rip, virt_addr_t user_rsp);
+void __userspace_init();
+
+thread_t* sched_thread_user_init(vm_allocator_t* address_space, virt_addr_t entry_point) {
+    thread_t* thread = (thread_t*) vmm_alloc_backed(&kernel_allocator, 1, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true);
+    thread->thread_common.process = nullptr;
+    thread->thread_common.tid = next_tid++;
+    thread->thread_common.address_space = address_space;
+    thread->thread_common.sched_next = nullptr;
+    thread->thread_common.proc_next = nullptr;
+    // @todo: we should prob move this into the userspace allocator
+    thread->thread_rsp = vmm_alloc_backed(&kernel_allocator, 4, VM_ACCESS_USER, VM_CACHE_NORMAL, VM_READ_WRITE, true) + (4 * PAGE_SIZE_DEFAULT);
+    thread->syscall_rsp = vmm_alloc_backed(&kernel_allocator, 4, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true) + (4 * PAGE_SIZE_DEFAULT);
+    thread->kernel_rsp = vmm_alloc_backed(&kernel_allocator, 4, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true) + (4 * PAGE_SIZE_DEFAULT);
+    thread->thread_common.status = THREAD_STATUS_READY;
+
+    uint64_t* stack = (uint64_t*) thread->syscall_rsp;
+    *(--stack) = thread->thread_rsp; // user rsp (set by __userspace_init)
+    *(--stack) = entry_point; // rcx (where sysret will jump to - set by __userspace_init)
+    *(--stack) = (virt_addr_t)__userspace_init; // r14
+    *(--stack) = 0; // r15
+    *(--stack) = 0; // r14
+    *(--stack) = 0; // r13
+    *(--stack) = 0; // r12
+    *(--stack) = 0; // rbp
+    *(--stack) = 0; // rbx
+    thread->syscall_rsp = (virt_addr_t) stack;
+
+    return thread;
+}
+
 
 thread_t* sched_get_current_thread() {
     thread_t* thread;
@@ -126,6 +156,10 @@ void sched_yield() {
 
     sched_set_current_thread(next_thread);
     vm_address_space_switch(next_thread->thread_common.address_space);
+
+    // @todo: what the fuck...
+    tss_t* tss = CPU_LOCAL_READ(cpu_tss);
+    tss->rsp0 = next_thread->kernel_rsp;
 
     spinlock_critical_unlock(&g_scheduler.sched_lock, __spin_flag);
 

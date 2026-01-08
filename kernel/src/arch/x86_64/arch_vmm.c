@@ -325,8 +325,19 @@ void vm_address_space_switch(vm_allocator_t* allocator) {
     arch_memory_barrier();
 }
 
+void vm_paging_setup_user(vm_allocator_t* allocator) {
+    uint64_t* pml4_kernel = (uint64_t*) phys_to_hhdm(kernel_allocator.kernel_paging_structures_base);
+    uint64_t* pml4_user = (uint64_t*) phys_to_hhdm(allocator->kernel_paging_structures_base);
+
+    memcpy(pml4_user + 256, pml4_kernel + 256, 256 * sizeof(uint64_t));
+}
+
 void vm_paging_bsp_init(vm_allocator_t* allocator) {
     allocator->kernel_paging_structures_base = __alloc_entry();
+    uint64_t* pml4 = (uint64_t*) phys_to_hhdm(allocator->kernel_paging_structures_base);
+    for(int i = 256; i < 512; i++) {
+        pml4[i] = PAGE_PRESENT_BIT | PAGE_RW_BIT | (__alloc_entry() & SMALL_PAGE_ADDRESS_MASK);
+    }
     __setup_pat();
 }
 

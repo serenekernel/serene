@@ -32,6 +32,8 @@ void vmm_kernel_init(vm_allocator_t* allocator, virt_addr_t start, virt_addr_t e
     allocator->vm_tree.length_of_node = vm_length_of_node;
 }
 
+void vm_paging_setup_user(vm_allocator_t* allocator);
+
 void vmm_user_init(vm_allocator_t* allocator, virt_addr_t start, virt_addr_t end) {
     allocator->start = start;
     allocator->end = end;
@@ -42,6 +44,7 @@ void vmm_user_init(vm_allocator_t* allocator, virt_addr_t start, virt_addr_t end
     allocator->kernel_paging_structures_base = 0;
     allocator->vm_tree.value_of_node = vm_value_of_node;
     allocator->vm_tree.length_of_node = vm_length_of_node;
+    vm_paging_setup_user(allocator);
 }
 
 vm_node_t* vmm_alloc_raw(vm_allocator_t* allocator, size_t page_count) {

@@ -19,6 +19,7 @@
 #include <uacpi/internal/tables.h>
 #include <uacpi/status.h>
 #include <common/cpu_local.h>
+#include <arch/userspace.h>
 
 const char* arch_get_name(void) {
     return "x86_64";
@@ -74,6 +75,8 @@ void setup_uacpi() {
 }
 
 void setup_arch() {
+    init_cpu_local();
+
     setup_gdt();
     printf("GDT INIT OK!\n");
 
@@ -97,7 +100,6 @@ void setup_arch() {
             highest_apic_id = mp_request.response->cpus[i]->lapic_id;
         }
     }
-    init_cpu_local();
     ipi_init_bsp(highest_apic_id);
     printf("LAPIC INIT OK!\n");
 }
@@ -155,22 +157,35 @@ void arch_init_bsp() {
         }
 
         printf("Starting AP with lapic id %u\n", mp_request.response->cpus[i]->lapic_id);
-        mp_request.response->cpus[i]->goto_address = &arch_init_ap;
+        // mp_request.response->cpus[i]->goto_address = &arch_init_ap;
     }
 
 
     sched_init_bsp();
+    userspace_init();
 
-    thread_t* test1 = sched_thread_init(&kernel_allocator, (virt_addr_t) thread_a);
-    thread_t* test2 = sched_thread_init(&kernel_allocator, (virt_addr_t) thread_b);
-    thread_t* test3 = sched_thread_init(&kernel_allocator, (virt_addr_t) thread_c);
-    thread_t* test4 = sched_thread_init(&kernel_allocator, (virt_addr_t) thread_d);
-    sched_add_thread(test1);
-    sched_add_thread(test2);
-    sched_add_thread(test3);
-    sched_add_thread(test4);
+    // thread_t* test1 = sched_thread_kernel_init((virt_addr_t) thread_a);
+    // thread_t* test2 = sched_thread_kernel_init((virt_addr_t) thread_b);
+    // thread_t* test3 = sched_thread_kernel_init((virt_addr_t) thread_c);
+    // thread_t* test4 = sched_thread_kernel_init((virt_addr_t) thread_d);
+    // sched_add_thread(test1);
+    // sched_add_thread(test2);
+    // sched_add_thread(test3);
+    // sched_add_thread(test4);
     printf("bsp init yielding\n");
 
+    // lord forgive me
+    uint8_t um_test[] = { 0xb8, 0x01, 0x00, 0x00, 0x00, 0x0f, 0x05, 0xcc };
+    vm_allocator_t* allocator = (vm_allocator_t*)vmm_alloc_backed(&kernel_allocator, 1, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true);
+    vmm_user_init(allocator, 0x40000000, 0x50000000);
+    vm_address_space_switch(allocator);
+    void* um_entry = (void*)vmm_alloc_backed(allocator, 1, VM_ACCESS_USER, VM_CACHE_NORMAL, VM_READ_WRITE | VM_EXECUTE, true);
+
+    memcpy(um_entry, um_test, sizeof(um_test));
+    vm_address_space_switch(&kernel_allocator);
+
+    thread_t* thread = sched_thread_user_init(allocator, (virt_addr_t)um_entry);
+    sched_add_thread(thread);
     enable_interrupts();
 
     while(1) {
@@ -186,12 +201,12 @@ void arch_init_ap(struct limine_mp_info* info) {
     vm_address_space_switch(&kernel_allocator);
     printf("ap didn't kill itself\n");
 
+    init_cpu_local();
     setup_gdt();
     ipi_init_ap();
     setup_idt_ap();
     lapic_init_ap();
     spinlock_unlock(&arch_ap_init_lock);
-    init_cpu_local();
 
     enable_interrupts();
     sched_init_ap();
