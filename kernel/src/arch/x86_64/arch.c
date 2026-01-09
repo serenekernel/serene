@@ -74,6 +74,8 @@ void setup_uacpi() {
     printf("uACPI INIT OK!\n");
 }
 
+void __enable_sse();
+
 void setup_arch() {
     init_cpu_local();
 
@@ -102,6 +104,7 @@ void setup_arch() {
     }
     ipi_init_bsp(highest_apic_id);
     printf("LAPIC INIT OK!\n");
+    __enable_sse();
 }
 
 void ps2_test(interrupt_frame_t*) {
