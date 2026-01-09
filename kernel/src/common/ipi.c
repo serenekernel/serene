@@ -3,10 +3,13 @@
 #include <common/ipi.h>
 #include <common/spinlock.h>
 #include <memory/vmm.h>
+#include <string.h>
 
 typedef struct {
+    // @todo: atmoics
     bool cpu_exists;
-    ipi_t* ipi;
+    bool ipi_pending;
+    ipi_t ipi;
 } ipi_meta_t;
 
 spinlock_t g_ipi_lock;
@@ -19,10 +22,6 @@ void ipi_init_bsp(size_t cpu_count) {
     size_t total_size = ALIGN_UP(sizeof(ipi_meta_t) * cpu_count, PAGE_SIZE_DEFAULT) / PAGE_SIZE_DEFAULT;
     g_ipi_table = (ipi_meta_t*) vmm_alloc_backed(&kernel_allocator, total_size, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true);
     g_cpu_count = cpu_count;
-    for(size_t i = 0; i < cpu_count; i++) {
-        g_ipi_table[i].cpu_exists = false;
-        g_ipi_table[i].ipi = nullptr;
-    }
 
     g_ipi_table[lapic_get_id()].cpu_exists = true;
 }
@@ -42,10 +41,10 @@ void ipi_set(uint32_t cpu_id, ipi_t* ipi) {
     assert(g_ipi_table != nullptr && "IPI table not initialized before setting IPI");
     assert(g_ipi_table[cpu_id].cpu_exists == true && "Setting IPI to non-existent CPU");
 
-    while(g_ipi_table[cpu_id].ipi != nullptr) {
+    while(g_ipi_table[cpu_id].ipi_pending) {
     }
 
-    g_ipi_table[cpu_id].ipi = ipi;
+    memcpy(&g_ipi_table[cpu_id].ipi, ipi, sizeof(ipi_t));
 }
 
 void ipi_send_async(uint32_t cpu_id, ipi_t* ipi) {
@@ -63,12 +62,23 @@ void ipi_send(uint32_t cpu_id, ipi_t* ipi) {
         return;
     }
     spinlock_lock(&g_ipi_lock);
-    ipi_send_async(cpu_id, ipi);
+    ipi_set(cpu_id, ipi);
+    lapic_send_raw_ipi(cpu_id, 0xF0);
 
     // wait for IPI to be handled
-    while(g_ipi_table[cpu_id].ipi != nullptr) {
+    while(g_ipi_table[cpu_id].ipi_pending) {
     }
+
     spinlock_unlock(&g_ipi_lock);
+}
+
+void ipi_broadcast_raw(ipi_t* ipi) {
+    for(size_t i = 0; i < g_cpu_count; i++) {
+        if(i == lapic_get_id() || g_ipi_table[i].cpu_exists == false) {
+            continue;
+        }
+        ipi_set(i, ipi);
+    }
 }
 
 void ipi_broadcast_async(ipi_t* ipi) {
@@ -76,12 +86,7 @@ void ipi_broadcast_async(ipi_t* ipi) {
         return;
     }
     spinlock_lock(&g_ipi_lock);
-    for(size_t i = 0; i < g_cpu_count; i++) {
-        if(i == lapic_get_id() || g_ipi_table[i].cpu_exists == false) {
-            continue;
-        }
-        ipi_set(i, ipi);
-    }
+    ipi_broadcast_raw(ipi);
     spinlock_unlock(&g_ipi_lock);
     lapic_broadcast_raw_ipi(0xF0); // @todo: use a better vector
 }
@@ -91,24 +96,25 @@ void ipi_broadcast(ipi_t* ipi) {
         return;
     }
     spinlock_lock(&g_ipi_lock);
-    ipi_broadcast_async(ipi);
+    ipi_broadcast_raw(ipi);
+    lapic_broadcast_raw_ipi(0xF0);
 
     // wait for all IPIs to be handled
     for(size_t i = 0; i < g_cpu_count; i++) {
         if(i == lapic_get_id() || g_ipi_table[i].cpu_exists == false) {
             continue;
         }
-        while(g_ipi_table[i].ipi != nullptr) {
+        while(g_ipi_table[i].ipi_pending) {
         }
     }
     spinlock_unlock(&g_ipi_lock);
 }
 
-void ipi_handle(const ipi_t* ipi) {
-    if(ipi == nullptr) {
-        // ???
-        return;
-    }
+void ipi_handle() {
+    assert(g_ipi_table != nullptr && "IPI table not initialized before setting IPI");
+    assert(g_ipi_table[lapic_get_id()].cpu_exists == true && "Setting IPI to non-existent CPU");
+    assert(g_ipi_table[lapic_get_id()].ipi_pending == true && "Processing IPI when none is pending");
+    ipi_t* ipi = &g_ipi_table[lapic_get_id()].ipi;
 
     if(ipi->type == IPI_TLB_FLUSH) {
         vm_flush_page_raw(ipi->tlb_flush.virt_addr);
@@ -118,18 +124,14 @@ void ipi_handle(const ipi_t* ipi) {
     if(ipi->type == IPI_DIE) {
         arch_die();
     }
-}
 
-const ipi_t* ipi_get(uint32_t cpu_id) {
-    assert(g_ipi_table != nullptr && "IPI table not initialized before getting IPI");
-    assert(g_ipi_table[cpu_id].cpu_exists == true && "Getting IPI from non-existent CPU");
-
-    return g_ipi_table[cpu_id].ipi;
+    g_ipi_table[lapic_get_id()].ipi_pending = false;
 }
 
 void ipi_ack(uint32_t cpu_id) {
     assert(g_ipi_table != nullptr && "IPI table not initialized before setting IPI");
     assert(g_ipi_table[cpu_id].cpu_exists == true && "Setting IPI to non-existent CPU");
 
-    g_ipi_table[cpu_id].ipi = nullptr;
+    memset(&g_ipi_table[cpu_id].ipi, 0, sizeof(ipi_t));
+    g_ipi_table[cpu_id].ipi_pending = false;
 }

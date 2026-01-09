@@ -27,4 +27,4 @@ void ipi_broadcast_async(ipi_t* ipi);
 void ipi_send(uint32_t cpu_id, ipi_t* ipi);
 void ipi_broadcast(ipi_t* ipi);
 
-void ipi_handle(const ipi_t* ipi);
+void ipi_handle();

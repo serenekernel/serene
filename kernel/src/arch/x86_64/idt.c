@@ -65,13 +65,11 @@ void setup_idt_ap() {
     __load_idt(&idtr);
 }
 
-const ipi_t* ipi_get(uint32_t cpu_id);
-void ipi_ack(uint32_t cpu_id);
 
 void x86_64_dispatch_interupt(interrupt_frame_t* frame) {
     (void) frame;
     printf("Interrupt received: 0x%02X on lapic %u\n", frame->vector, lapic_get_id());
-    if(frame->vector < 0x20) {
+    if(frame->vector < 0x20 && frame->vector != 0x03) {
         if(frame->vector == 0x0E) {
             vm_fault_reason_t reason = VM_FAULT_UKKNOWN;
             if((frame->error & (1 << 0)) == 0) {
@@ -85,9 +83,7 @@ void x86_64_dispatch_interupt(interrupt_frame_t* frame) {
     }
 
     if(frame->vector == 0xf0) {
-        const ipi_t* ipi = ipi_get(lapic_get_id());
-        ipi_handle(ipi);
-        ipi_ack(lapic_get_id());
+        ipi_handle();
         lapic_eoi();
         return;
     }

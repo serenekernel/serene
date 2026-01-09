@@ -22,8 +22,13 @@ typedef struct thread {
 #include <arch/sched.h>
 
 void sched_init_bsp();
+void sched_start_bsp();
+
 void sched_init_ap();
+
+
 void sched_yield();
+void sched_yield_status(thread_status_t new_status);
 
 thread_t* sched_thread_kernel_init(virt_addr_t entry_point);
 thread_t* sched_thread_user_init(vm_allocator_t* address_space, virt_addr_t entry_point);

@@ -188,9 +188,8 @@ void arch_init_bsp() {
     sched_add_thread(thread);
     enable_interrupts();
 
-    while(1) {
-        sched_yield();
-    }
+    // Jump to the idle thread - this never returns
+    sched_start_bsp();
 }
 
 void arch_init_ap(struct limine_mp_info* info) {
@@ -212,6 +211,7 @@ void arch_init_ap(struct limine_mp_info* info) {
     sched_init_ap();
 
     while(1) {
+        printf("[AP idle loop]\n");
         sched_yield();
     }
 }

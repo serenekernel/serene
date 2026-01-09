@@ -75,18 +75,18 @@ __attribute__((noreturn)) void arch_panic_int(interrupt_frame_t* frame) {
         if(frame->error == 0) {
             printf("General Protection Fault (0x%x | no error code)", frame->vector);
         } else {
-            printf("General Protection Fault (0x%x | %d)", frame->vector, frame->error);
+            printf("General Protection Fault (0x%x | 0x%lx)", frame->vector, frame->error);
             if(frame->error & 0x1) {
                 printf("  [external event]");
             }
             if(frame->error & 0x2) {
                 printf(" [idt]");
             } else if(frame->error & 0x4) {
-                printf(" [gdt]");
-            } else {
                 printf(" [ldt]");
+            } else {
+                printf(" [gdt]");
             }
-            printf(" [index=0x%x]", (frame->error & 0xFFF8) >> 4);
+            printf(" [index=0x%x]", (frame->error & 4) >> 4);
         }
     } else if(frame->vector <= 21) {
         printf("%s (0x%x | %d)", name_table[frame->vector], frame->vector, frame->error);
