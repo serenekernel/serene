@@ -40,6 +40,7 @@ void load_elf_exec(const elf64_elf_header_t* header, vm_allocator_t* allocator) 
     elf64_program_header_t* phdrs = (elf64_program_header_t*) ((uintptr_t) header + header->e_phoff);
 
     // for non PIE executables, we load at the specified virtual address
+    printf("e_type: %d\n", header->e_type);
     uintptr_t base_address = 0;
 
     // we do NOT wanna get interrupted while cr3 is not the kernel cr3
@@ -48,34 +49,78 @@ void load_elf_exec(const elf64_elf_header_t* header, vm_allocator_t* allocator) 
 
     assert(header->e_phnum != 0xffff && "the number of program headers is too large to fit into e_phnum");
 
-    vm_address_space_switch(allocator);
+    // First pass: find the full address range needed for all LOAD segments
+    virt_addr_t min_addr = (virt_addr_t)-1;
+    virt_addr_t max_addr = 0;
+
     for(uint16_t i = 0; i < header->e_phnum; i++) {
         elf64_program_header_t* phdr = &phdrs[i];
         if(phdr->p_type != PTYPE_LOAD) {
             continue;
         }
-        virt_addr_t segment_address = phdr->p_vaddr + base_address;
-        size_t page_count = ALIGN_UP(phdr->p_memsz, PAGE_SIZE_DEFAULT) / PAGE_SIZE_DEFAULT;
+        virt_addr_t seg_start = ALIGN_DOWN(phdr->p_vaddr + base_address, PAGE_SIZE_DEFAULT);
+        virt_addr_t seg_end = ALIGN_UP(phdr->p_vaddr + base_address + phdr->p_memsz, PAGE_SIZE_DEFAULT);
 
-        virt_addr_t allocation = vmm_try_alloc_backed(allocator, segment_address, page_count, VM_ACCESS_USER, VM_CACHE_NORMAL, VM_READ_WRITE, true);
-        assert(allocation != 0 && "failed to allocate segment for elf loading");
-
-        memcpy((void*) allocation, (const void*) ((uintptr_t) header + phdr->p_offset), phdr->p_filesz);
-        if(phdr->p_memsz > phdr->p_filesz) {
-            memset((void*) (allocation + phdr->p_filesz), 0, phdr->p_memsz - phdr->p_filesz);
+        if(seg_start < min_addr) {
+            min_addr = seg_start;
         }
+        if(seg_end > max_addr) {
+            max_addr = seg_end;
+        }
+    }
+
+    size_t total_page_count = (max_addr - min_addr) / PAGE_SIZE_DEFAULT;
+    printf("load: 0x%llx, %d pages\n", min_addr, total_page_count);
+
+    vm_address_space_switch(allocator);
+
+    virt_addr_t allocation = vmm_try_alloc_backed(allocator, min_addr, total_page_count, VM_ACCESS_USER, VM_CACHE_NORMAL, VM_READ_WRITE, true);
+    assert(allocation != 0 && "failed to allocate segment for elf loading");
+
+    // Second pass: copy all segment data while pages are still writable
+    for(uint16_t i = 0; i < header->e_phnum; i++) {
+        elf64_program_header_t* phdr = &phdrs[i];
+        if(phdr->p_type != PTYPE_LOAD) {
+            continue;
+        }
+
+        virt_addr_t segment_vaddr = phdr->p_vaddr + base_address;
+
+        // Copy file contents
+        memcpy((void*) segment_vaddr, (const void*) ((uintptr_t) header + phdr->p_offset), phdr->p_filesz);
+
+        // Zero-fill remaining memory (BSS section)
+        if(phdr->p_memsz > phdr->p_filesz) {
+            memset((void*) (segment_vaddr + phdr->p_filesz), 0, phdr->p_memsz - phdr->p_filesz);
+        }
+    }
+
+    // Third pass: set proper permissions for each segment
+    for(uint16_t i = 0; i < header->e_phnum; i++) {
+        elf64_program_header_t* phdr = &phdrs[i];
+        if(phdr->p_type != PTYPE_LOAD) {
+            continue;
+        }
+
+        virt_addr_t segment_vaddr = phdr->p_vaddr + base_address;
+        virt_addr_t segment_start = ALIGN_DOWN(segment_vaddr, PAGE_SIZE_DEFAULT);
+        virt_addr_t segment_end = ALIGN_UP(segment_vaddr + phdr->p_memsz, PAGE_SIZE_DEFAULT);
+        size_t segment_pages = (segment_end - segment_start) / PAGE_SIZE_DEFAULT;
 
         vm_flags_t flags = VM_READ_ONLY;
         if(phdr->p_flags & PFLAGS_WRITE) {
             flags = VM_READ_WRITE;
         }
-
         if(phdr->p_flags & PFLAGS_EXECUTE) {
             flags |= VM_EXECUTE;
         }
 
-        vm_reprotect_page(allocator, segment_address, VM_ACCESS_USER, VM_CACHE_NORMAL, flags);
+        // Reprotect each page in this segment
+        for(size_t j = 0; j < segment_pages; j++) {
+            vm_reprotect_page(allocator, segment_start + (j * PAGE_SIZE_DEFAULT), VM_ACCESS_USER, VM_CACHE_NORMAL, flags);
+        }
     }
+
     vm_address_space_switch(&kernel_allocator);
 
     if(__irq) {
