@@ -7,7 +7,7 @@
 #include <common/cpu_local.h>
 #include <stdint.h>
 #include <stdio.h>
-
+#include <assert.h>
 void __handle_syscall();
 
 void userspace_init() {
@@ -33,8 +33,14 @@ void dispatch_syscall(uint64_t syscall_nr, uint64_t arg1, uint64_t arg2, uint64_
         sched_yield_status(THREAD_STATUS_TERMINATED);
     } else if(syscall_nr == 0xdeadbeaf) {
         thread_t* thread = CPU_LOCAL_READ(current_thread);
-        thread->thread_common.process->io_perm_map[thread->thread_common.process->io_perm_map_num++] = (uint16_t)arg1;
-        tss_io_allow_port(CPU_LOCAL_READ(cpu_tss), arg1);
-        printf("Granted I/O port 0x%llx to process %d\n", arg1, thread->thread_common.process->pid);
+        uint16_t start_port = (uint16_t)arg1;
+        uint16_t num_ports = (uint16_t)arg2;
+        assert((start_port + num_ports) < 65535 && "too many i/o ports requested");
+        for(size_t i = start_port; i < start_port + num_ports; i++) {
+            printf("Granted I/O port 0x%llx to process %d\n", arg1, thread->thread_common.process->pid);
+            thread->thread_common.process->io_perm_map[thread->thread_common.process->io_perm_map_num++] = (uint16_t)i;
+            tss_io_allow_port(CPU_LOCAL_READ(cpu_tss), i);
+        }
+
     }
 }
