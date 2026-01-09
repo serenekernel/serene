@@ -1,0 +1,12 @@
+[build]
+target = "x86_64-serene.json"
+
+[target.x86_64-serene]
+rustflags = [
+    "-C", "link-arg=-Tlink.ld",
+    "-C", "link-arg=-no-pie",
+    "-C", "relocation-model=static",
+    "-C", "code-model=kernel",
+    "-C", "panic=abort",
+    "-C", "force-frame-pointers=yes"
+]
