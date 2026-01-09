@@ -16,8 +16,8 @@ __context_switch:
     push r15
 
     ; @todo: this is so fucking flimsy it's not even funny
-    mov qword [rdi + 0x8], rsp   ; save current rsp to old thread struct
-    mov rsp, [rsi + 0x8]         ; load new rsp from new thread struct
+    mov qword [rdi + 16], rsp   ; save current rsp to old thread struct
+    mov rsp, [rsi + 16]         ; load new rsp from new thread struct
 
     mov [rdi + 0x30], rdx        ; load status into the thread struct - we NEED to do this in the case of termination because otherwise the reaper thread can kill us BEFORE we get to this point and then we'll be very fucked
 

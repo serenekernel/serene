@@ -62,12 +62,10 @@ void reaper_thread() {
                     }
 
                     printf("to_reap->thread_rsp: 0x%llx\n", to_reap->thread_rsp);
-                    printf("to_reap->syscall_rsp: 0x%llx\n", to_reap->syscall_rsp);
                     printf("to_reap->kernel_rsp: 0x%llx\n", to_reap->kernel_rsp);
                     printf("to_reap: 0x%llx\n", to_reap);
 
                     vmm_free(to_reap->thread_common.address_space, to_reap->thread_rsp);
-                    vmm_free(&kernel_allocator, to_reap->syscall_rsp);
                     vmm_free(&kernel_allocator, to_reap->kernel_rsp);
                     vmm_free(&kernel_allocator, (virt_addr_t) to_reap);
                 } else {
@@ -140,7 +138,7 @@ void sched_start_bsp() {
 
     lapic_timer_oneshot_ms(10);
     printf("BSP jumping to idle thread...\n");
-    __jump_to_idle_thread(g_scheduler.idle_thread->syscall_rsp, (virt_addr_t) idle_thread);
+    __jump_to_idle_thread(g_scheduler.idle_thread->kernel_rsp, (virt_addr_t) idle_thread);
 
     __builtin_unreachable();
 }
@@ -157,7 +155,7 @@ thread_t* sched_thread_kernel_init(virt_addr_t entry_point) {
     thread->sched_next = nullptr;
     thread->proc_next = nullptr;
     thread->thread_rsp = vmm_alloc_backed(&kernel_allocator, 4, VM_ACCESS_USER, VM_CACHE_NORMAL, VM_READ_WRITE, true) + (4 * PAGE_SIZE_DEFAULT);
-    thread->syscall_rsp = vmm_alloc_backed(&kernel_allocator, 4, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true) + (4 * PAGE_SIZE_DEFAULT);
+    thread->syscall_rsp = 0;
     thread->kernel_rsp = vmm_alloc_backed(&kernel_allocator, 4, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true) + (4 * PAGE_SIZE_DEFAULT);
     thread->thread_common.status = THREAD_STATUS_READY;
 
@@ -165,7 +163,7 @@ thread_t* sched_thread_kernel_init(virt_addr_t entry_point) {
     // Set up initial stack frame for context switch
     // We need to push the SysV ABI callee-saved registers: rbx, rbp, r12, r13, r14, r15
     // and the return address (entry point)
-    uint64_t* stack = (uint64_t*) thread->syscall_rsp;
+    uint64_t* stack = (uint64_t*) thread->kernel_rsp;
     *(--stack) = entry_point; // Return address (where ret will jump to)
     *(--stack) = 0; // rbx
     *(--stack) = 0; // rbp
@@ -173,7 +171,7 @@ thread_t* sched_thread_kernel_init(virt_addr_t entry_point) {
     *(--stack) = 0; // r13
     *(--stack) = 0; // r14
     *(--stack) = 0; // r15
-    thread->syscall_rsp = (virt_addr_t) stack;
+    thread->kernel_rsp = (virt_addr_t) stack;
 
     return thread;
 }
@@ -191,14 +189,13 @@ thread_t* sched_thread_user_init(vm_allocator_t* address_space, virt_addr_t entr
     thread->proc_next = nullptr;
     // @todo: we should prob move this into the userspace allocator
     thread->thread_rsp = vmm_alloc_backed(address_space, 4, VM_ACCESS_USER, VM_CACHE_NORMAL, VM_READ_WRITE, false) + (4 * PAGE_SIZE_DEFAULT);
-    thread->syscall_rsp = vmm_alloc_backed(&kernel_allocator, 4, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true) + (4 * PAGE_SIZE_DEFAULT);
+    thread->syscall_rsp = 0;
     thread->kernel_rsp = vmm_alloc_backed(&kernel_allocator, 4, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true) + (4 * PAGE_SIZE_DEFAULT);
     printf("thread_rsp: 0x%llx\n", thread->thread_rsp);
-    printf("syscall_rsp: 0x%llx\n", thread->syscall_rsp);
     printf("kernel_rsp: 0x%llx\n", thread->kernel_rsp);
     thread->thread_common.status = THREAD_STATUS_READY;
 
-    uint64_t* stack = (uint64_t*) thread->syscall_rsp;
+    uint64_t* stack = (uint64_t*) thread->kernel_rsp;
     *(--stack) = thread->thread_rsp; // user rsp (set by __userspace_init)
     *(--stack) = entry_point; // rcx (where sysret will jump to - set by __userspace_init)
     *(--stack) = (virt_addr_t) __userspace_init; // Return address
@@ -208,7 +205,7 @@ thread_t* sched_thread_user_init(vm_allocator_t* address_space, virt_addr_t entr
     *(--stack) = 0; // r13
     *(--stack) = 0; // r14
     *(--stack) = 0; // r15
-    thread->syscall_rsp = (virt_addr_t) stack;
+    thread->kernel_rsp = (virt_addr_t) stack;
 
     return thread;
 }

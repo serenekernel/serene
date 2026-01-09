@@ -76,7 +76,9 @@ macro_rules! println {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn _start() -> ! {
-    raw_syscall(0xdeadbeaf, 0xe9, 0, 0, 0, 0);
+    raw_syscall(0xdeadbeaf, 0xe9, 1, 0, 0, 0);
+    raw_syscall(0xdeadbeaf, 0xCF8, 4, 0, 0, 0);
+    raw_syscall(0xdeadbeaf, 0xCFC, 4, 0, 0, 0);
     println!("Hello world!");
     raw_syscall(0xcafebabe, 0, 0, 0, 0, 0);
 
