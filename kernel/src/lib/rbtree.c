@@ -285,11 +285,11 @@ rb_node_t* rb_find_upper(rb_tree_t* tree, size_t needle) {
 
     while(current != nullptr) {
         size_t value = tree->value_of_node(current);
-        if(value < needle) {
+        if(value > needle) {
             last_upper = current;
-            current = current->right;
-        } else {
             current = current->left;
+        } else {
+            current = current->right;
         }
     }
 
