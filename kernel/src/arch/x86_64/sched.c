@@ -66,7 +66,7 @@ void reaper_thread() {
                     printf("to_reap->kernel_rsp: 0x%llx\n", to_reap->kernel_rsp);
                     printf("to_reap: 0x%llx\n", to_reap);
 
-                    vmm_free(&kernel_allocator, to_reap->thread_rsp);
+                    vmm_free(to_reap->thread_common.address_space, to_reap->thread_rsp);
                     vmm_free(&kernel_allocator, to_reap->syscall_rsp);
                     vmm_free(&kernel_allocator, to_reap->kernel_rsp);
                     vmm_free(&kernel_allocator, (virt_addr_t) to_reap);
@@ -190,9 +190,12 @@ thread_t* sched_thread_user_init(vm_allocator_t* address_space, virt_addr_t entr
     thread->sched_next = nullptr;
     thread->proc_next = nullptr;
     // @todo: we should prob move this into the userspace allocator
-    thread->thread_rsp = vmm_alloc_backed(&kernel_allocator, 4, VM_ACCESS_USER, VM_CACHE_NORMAL, VM_READ_WRITE, true) + (4 * PAGE_SIZE_DEFAULT);
+    thread->thread_rsp = vmm_alloc_backed(address_space, 4, VM_ACCESS_USER, VM_CACHE_NORMAL, VM_READ_WRITE, false) + (4 * PAGE_SIZE_DEFAULT);
     thread->syscall_rsp = vmm_alloc_backed(&kernel_allocator, 4, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true) + (4 * PAGE_SIZE_DEFAULT);
     thread->kernel_rsp = vmm_alloc_backed(&kernel_allocator, 4, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true) + (4 * PAGE_SIZE_DEFAULT);
+    printf("thread_rsp: 0x%llx\n", thread->thread_rsp);
+    printf("syscall_rsp: 0x%llx\n", thread->syscall_rsp);
+    printf("kernel_rsp: 0x%llx\n", thread->kernel_rsp);
     thread->thread_common.status = THREAD_STATUS_READY;
 
     uint64_t* stack = (uint64_t*) thread->syscall_rsp;
