@@ -72,8 +72,6 @@ __jump_to_idle_thread:
     ; Load the idle thread's prepared stack
     ; The stack has the context switch frame: rbx, rbp, r12, r13, r14, r15, return_addr
     mov rsp, rdi
-
-    ; Pop the saved registers (they're all zero from initialization)
     pop r15
     pop r14
     pop r13
@@ -81,8 +79,5 @@ __jump_to_idle_thread:
     pop rbp
     pop rbx
 
-    ; Enable interrupts before jumping to idle thread
     sti
-
-    ; Return will jump to the entry point that's on top of stack
     ret

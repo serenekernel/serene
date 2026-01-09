@@ -8,3 +8,6 @@ build/
 deps/edk2-ovmf
 .cache
 compile_commands.json
+
+boot_mods/test
+boot_mods/test.o

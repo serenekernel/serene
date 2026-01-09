@@ -1,4 +1,3 @@
-
 function tbl_tostring(tbl, indent)
     local s = "{\n"
 
@@ -33,20 +32,29 @@ end
 function build(build_info)
     local arch = build_info.target_architecture or "x86_64"
     local xorriso_command = {
-        x86_64 = "xorriso -as mkisofs -R -r -J -b boot/limine/limine-bios-cd.bin -no-emul-boot -boot-load-size 4 -boot-info-table -hfsplus -apm-block-size 2048 --efi-boot boot/limine/limine-uefi-cd.bin -efi-boot-part --efi-boot-image --protective-msdos-label iso_root -o build/output-" .. arch .. ".iso",
-        aarch64 = "xorriso -as mkisofs -R -r -J -hfsplus -apm-block-size 2048 --efi-boot boot/limine/limine-uefi-cd.bin -efi-boot-part --efi-boot-image --protective-msdos-label iso_root -o build/output-" .. arch .. ".iso",
-        loongarch64 = "xorriso -as mkisofs -R -r -J -hfsplus -apm-block-size 2048 --efi-boot boot/limine/limine-uefi-cd.bin -efi-boot-part --efi-boot-image --protective-msdos-label iso_root -o build/output-" .. arch .. ".iso",
-        riscv64 = "xorriso -as mkisofs -R -r -J -hfsplus -apm-block-size 2048 --efi-boot boot/limine/limine-uefi-cd.bin -efi-boot-part --efi-boot-image --protective-msdos-label iso_root -o build/output-" .. arch .. ".iso"
+        x86_64 =
+            "xorriso -as mkisofs -R -r -J -b boot/limine/limine-bios-cd.bin -no-emul-boot -boot-load-size 4 -boot-info-table -hfsplus -apm-block-size 2048 --efi-boot boot/limine/limine-uefi-cd.bin -efi-boot-part --efi-boot-image --protective-msdos-label iso_root -o build/output-" ..
+            arch .. ".iso",
+        aarch64 =
+            "xorriso -as mkisofs -R -r -J -hfsplus -apm-block-size 2048 --efi-boot boot/limine/limine-uefi-cd.bin -efi-boot-part --efi-boot-image --protective-msdos-label iso_root -o build/output-" ..
+            arch .. ".iso",
+        loongarch64 =
+            "xorriso -as mkisofs -R -r -J -hfsplus -apm-block-size 2048 --efi-boot boot/limine/limine-uefi-cd.bin -efi-boot-part --efi-boot-image --protective-msdos-label iso_root -o build/output-" ..
+            arch .. ".iso",
+        riscv64 =
+            "xorriso -as mkisofs -R -r -J -hfsplus -apm-block-size 2048 --efi-boot boot/limine/limine-uefi-cd.bin -efi-boot-part --efi-boot-image --protective-msdos-label iso_root -o build/output-" ..
+            arch .. ".iso"
     }
     local module = {
         name = "make_iso",
         module_type = "custom",
-        depends_on = { "build_modules/kernel.lua" },
+        depends_on = { "build_modules/kernel.lua", "build_modules/test.lua" },
         info = {
             commands = {
                 "rm -rf iso_root",
                 "mkdir -p iso_root/boot",
                 "cp -v build/kernel-" .. arch .. " iso_root/boot/kernel",
+                "cp -v boot_mods/test iso_root/boot/test.elf",
                 "mkdir -p iso_root/boot/limine",
                 "cp -v limine.conf iso_root/boot/limine/",
                 "mkdir -p iso_root/EFI/BOOT",

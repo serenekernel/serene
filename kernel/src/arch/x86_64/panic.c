@@ -60,7 +60,6 @@ __attribute__((noreturn)) void arch_panic_int(interrupt_frame_t* frame) {
     ipi_broadcast_async(&ipi);
     int apic_id = lapic_get_id();
 
-
     if(frame->vector == 0x0E) {
         int page_protection_violation = ((frame->error & 0b00000001) > 0);
         int write_access = ((frame->error & 0b00000010) > 0);
@@ -86,7 +85,7 @@ __attribute__((noreturn)) void arch_panic_int(interrupt_frame_t* frame) {
             } else {
                 printf(" [gdt]");
             }
-            printf(" [index=0x%x]", (frame->error & 4) >> 4);
+            printf(" [index=0x%x]", (frame->error & 0xFFF8) >> 4);
         }
     } else if(frame->vector <= 21) {
         printf("%s (0x%x | %d)", name_table[frame->vector], frame->vector, frame->error);

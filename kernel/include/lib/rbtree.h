@@ -27,6 +27,11 @@ typedef struct {
 
 void rb_insert(rb_tree_t* tree, rb_node_t* node);
 void rb_remove(rb_tree_t* tree, rb_node_t* node);
+
+rb_node_t* rb_find_first(rb_tree_t* tree);
 rb_node_t* rb_find_exact(rb_tree_t* tree, size_t needle);
 rb_node_t* rb_find_within(rb_tree_t* tree, size_t needle);
+rb_node_t* rb_find_lower(rb_tree_t* tree, size_t needle);
+rb_node_t* rb_find_upper(rb_tree_t* tree, size_t needle);
+
 size_t rb_find_first_gap(rb_tree_t* tree, size_t start, size_t end, size_t size);

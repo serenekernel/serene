@@ -1,6 +1,6 @@
 #include "arch/gdt.h"
 #include <arch/cpu_local.h>
-#include <common/sched.h>
+#include <arch/thread.h>
 
 typedef struct {
     thread_t* current_thread;

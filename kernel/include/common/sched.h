@@ -1,31 +1,11 @@
 #pragma once
-#include "memory/vmm.h"
-
-#include <stdint.h>
-
-typedef enum {
-    THREAD_STATUS_RUNNING,
-    THREAD_STATUS_READY,
-    THREAD_STATUS_BLOCKED,
-    THREAD_STATUS_TERMINATED
-} thread_status_t;
-
-typedef struct thread {
-    void* process;
-    uint32_t tid;
-    vm_allocator_t* address_space;
-    thread_status_t status;
-    struct thread* sched_next;
-    struct thread* proc_next;
-} thread_common_t;
-
-#include <arch/sched.h>
+#include <memory/vmm.h>
+#include <arch/thread.h>
 
 void sched_init_bsp();
 void sched_start_bsp();
 
 void sched_init_ap();
-
 
 void sched_yield();
 void sched_yield_status(thread_status_t new_status);

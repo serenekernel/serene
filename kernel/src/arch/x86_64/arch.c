@@ -139,6 +139,8 @@ void thread_d() {
     }
 }
 
+void testing_elf_loader();
+
 void arch_init_bsp() {
     setup_memory();
     setup_arch();
@@ -174,18 +176,8 @@ void arch_init_bsp() {
     // sched_add_thread(test4);
     printf("bsp init yielding\n");
 
-    // lord forgive me
-    uint8_t um_test[] = { 0xbf, 0xbe, 0xba, 0xfe, 0xca, 0x0f, 0x05, 0xcc };
-    vm_allocator_t* allocator = (vm_allocator_t*) vmm_alloc_backed(&kernel_allocator, 1, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true);
-    vmm_user_init(allocator, 0x40000000, 0x50000000);
-    vm_address_space_switch(allocator);
-    void* um_entry = (void*) vmm_alloc_backed(allocator, 1, VM_ACCESS_USER, VM_CACHE_NORMAL, VM_READ_WRITE | VM_EXECUTE, true);
 
-    memcpy(um_entry, um_test, sizeof(um_test));
-    vm_address_space_switch(&kernel_allocator);
-
-    thread_t* thread = sched_thread_user_init(allocator, (virt_addr_t) um_entry);
-    sched_add_thread(thread);
+    testing_elf_loader();
     enable_interrupts();
 
     // Jump to the idle thread - this never returns

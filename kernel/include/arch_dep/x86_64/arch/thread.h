@@ -1,15 +1,17 @@
 #pragma once
-#include "common/memory.h"
-
-#include <common/sched.h>
+#include <common/memory.h>
+#include <common/thread.h>
 #include <stddef.h>
 
-typedef struct {
+typedef struct thread {
     virt_addr_t thread_rsp;
     virt_addr_t syscall_rsp;
     virt_addr_t kernel_rsp;
 
     thread_common_t thread_common;
+
+    struct thread* sched_next;
+    struct thread* proc_next;
 } __attribute__((packed)) thread_t;
 
 // userspace_stub.asm & sched_stub.asm

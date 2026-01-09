@@ -24,6 +24,23 @@ LIMINE_REQUEST volatile struct limine_rsdp_request rsdp_request = {
     .revision = 0,
 };
 
+LIMINE_REQUEST volatile struct limine_internal_module elf_test = {
+    .path = "test.elf",
+    .string = "elf-test-module",
+    .flags = LIMINE_INTERNAL_MODULE_REQUIRED,
+};
+
+LIMINE_REQUEST volatile struct limine_internal_module* modules[] = {
+    &elf_test
+};
+
+LIMINE_REQUEST volatile struct limine_module_request module_request = {
+    .id = LIMINE_MODULE_REQUEST_ID,
+    .revision = 1,
+    .internal_modules = (struct limine_internal_module**)&modules,
+    .internal_module_count = 1
+};
+
 LIMINE_REQUEST volatile uint64_t limine_base_revision[] = LIMINE_BASE_REVISION(4);
 __attribute__((used, section(".limine_requests_start"))) volatile uint64_t limine_requests_start_marker[] = LIMINE_REQUESTS_START_MARKER;
 __attribute__((used, section(".limine_requests_end"))) volatile uint64_t limine_requests_end_marker[] = LIMINE_REQUESTS_END_MARKER;

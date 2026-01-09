@@ -47,6 +47,16 @@ void vmm_user_init(vm_allocator_t* allocator, virt_addr_t start, virt_addr_t end
     vm_paging_setup_user(allocator);
 }
 
+void vmm_destory_allocator(vm_allocator_t* allocator) {
+    while(true) {
+        rb_node_t* node = rb_find_first(&allocator->vm_tree);
+        if(node == nullptr) {
+            break;
+        }
+        vmm_free(allocator, ((vm_node_t*) node)->base);
+    }
+}
+
 vm_node_t* vmm_alloc_raw(vm_allocator_t* allocator, size_t page_count) {
     size_t total_size = page_count * PAGE_SIZE_DEFAULT;
 
@@ -95,6 +105,54 @@ virt_addr_t vmm_alloc_backed(vm_allocator_t* allocator, size_t page_count, vm_ac
         memset((void*) node->base, 0, page_count * PAGE_SIZE_DEFAULT);
     }
     return node->base;
+}
+
+virt_addr_t vmm_try_alloc_backed(vm_allocator_t* allocator, virt_addr_t address, size_t page_count, vm_access_t access, vm_cache_t cache, vm_flags_t flags, bool zero_fill) {
+    size_t total_size = page_count * PAGE_SIZE_DEFAULT;
+
+    rb_node_t* existing_node = rb_find_exact(&allocator->vm_tree, address);
+    if(existing_node != nullptr) {
+        return 0;
+    }
+
+    // Check for overlaps
+    rb_node_t* lower_node = rb_find_lower(&allocator->vm_tree, address);
+    if(lower_node != nullptr) {
+        vm_node_t* lower_vm_node = (vm_node_t*) lower_node;
+        if(lower_vm_node->base + lower_vm_node->size > address) {
+            return 0;
+        }
+    }
+
+    rb_node_t* upper_node = rb_find_upper(&allocator->vm_tree, address);
+    if(upper_node != nullptr) {
+        vm_node_t* upper_vm_node = (vm_node_t*) upper_node;
+        if(address + total_size > upper_vm_node->base) {
+            return 0;
+        }
+    }
+
+    phys_addr_t node_phys = pmm_alloc_page();
+    if(node_phys == 0) {
+        return 0;
+    }
+
+    vm_node_t* new_node = (vm_node_t*) (node_phys + hhdm_request.response->offset);
+    new_node->base = address;
+    new_node->size = total_size;
+    new_node->options_type = VM_OPTIONS_BACKED;
+
+    rb_insert(&allocator->vm_tree, &new_node->rb_node);
+
+    for(size_t i = 0; i < page_count; i++) {
+        phys_addr_t phys = pmm_alloc_page();
+        vm_map_page(allocator, new_node->base + (i * PAGE_SIZE_DEFAULT), phys, access, cache, flags);
+    }
+    if(zero_fill) {
+        memset((void*) new_node->base, 0, page_count * PAGE_SIZE_DEFAULT);
+    }
+
+    return new_node->base;
 }
 
 

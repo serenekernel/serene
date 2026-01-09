@@ -1,6 +1,7 @@
-#include "arch/cpu_local.h"
-#include "common/sched.h"
-
+#include "arch/gdt.h"
+#include <arch/cpu_local.h>
+#include <common/sched.h>
+#include <common/process.h>
 #include <arch/msr.h>
 #include <arch/userspace.h>
 #include <common/cpu_local.h>
@@ -25,6 +26,15 @@ void dispatch_syscall(uint64_t syscall_nr, uint64_t arg1, uint64_t arg2, uint64_
     printf("syscall! 0x%llx, 0x%llx, 0x%llx, 0x%llx, 0x%llx, 0x%llx, 0x%llx\n", syscall_nr, arg1, arg2, arg3, arg4, arg5);
     if(syscall_nr == 0xcafebabe) {
         printf("task dies now!!\n");
+        thread_t* thread = CPU_LOCAL_READ(current_thread);
+        if(thread->thread_common.process) {
+            process_destroy(thread->thread_common.process);
+        }
         sched_yield_status(THREAD_STATUS_TERMINATED);
+    } else if(syscall_nr == 0xdeadbeaf) {
+        thread_t* thread = CPU_LOCAL_READ(current_thread);
+        thread->thread_common.process->io_perm_map[thread->thread_common.process->io_perm_map_num++] = (uint16_t)arg1;
+        tss_io_allow_port(CPU_LOCAL_READ(cpu_tss), arg1);
+        printf("Granted I/O port 0x%llx to process %d\n", arg1, thread->thread_common.process->pid);
     }
 }

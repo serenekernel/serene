@@ -238,28 +238,75 @@ void rb_remove(rb_tree_t* tree, rb_node_t* node) {
     if(target) target->color = RB_COLOR_BLACK;
 }
 
+rb_node_t* rb_find_first(rb_tree_t* tree) {
+    rb_node_t* current = tree->root;
+    if(current == nullptr) return nullptr;
+
+    while(current->left != nullptr) {
+        current = current->left;
+    }
+
+    return current;
+}
+
+
 rb_node_t* rb_find_exact(rb_tree_t* tree, size_t needle) {
     rb_node_t* current = tree->root;
-    assert(tree->root != nullptr);
-    do {
+
+    while(current != nullptr) {
         size_t value = tree->value_of_node(current);
         if(value == needle) return current;
         current = (needle > value) ? current->right : current->left;
-    } while(current != nullptr);
+    }
+
     return nullptr;
+}
+
+rb_node_t* rb_find_lower(rb_tree_t* tree, size_t needle) {
+    rb_node_t* current = tree->root;
+    rb_node_t* last_lower = nullptr;
+
+    while(current != nullptr) {
+        size_t value = tree->value_of_node(current);;
+        if(value < needle) {
+            last_lower = current;
+            current = current->right;
+        } else {
+            current = current->left;
+        }
+    }
+
+    return last_lower;
+}
+
+rb_node_t* rb_find_upper(rb_tree_t* tree, size_t needle) {
+    rb_node_t* current = tree->root;
+    rb_node_t* last_upper = nullptr;
+
+    while(current != nullptr) {
+        size_t value = tree->value_of_node(current);
+        if(value < needle) {
+            last_upper = current;
+            current = current->right;
+        } else {
+            current = current->left;
+        }
+    }
+
+    return last_upper;
 }
 
 rb_node_t* rb_find_within(rb_tree_t* tree, size_t needle) {
     rb_node_t* current = tree->root;
-    assert(tree->root != nullptr);
     assert(tree->length_of_node != nullptr);
 
-    do {
+     while(current != nullptr) {
         size_t start = tree->value_of_node(current);
         size_t end = start + tree->length_of_node(current);
         if(start <= needle && needle < end) { return current; }
         current = (needle >= end) ? current->right : current->left;
-    } while(current != nullptr);
+    }
+
     return nullptr;
 }
 
