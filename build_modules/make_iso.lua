@@ -48,7 +48,7 @@ function build(build_info)
     local module = {
         name = "make_iso",
         module_type = "custom",
-        depends_on = { "build_modules/kernel.lua", "build_modules/test.lua" },
+        depends_on = { "build_modules/kernel.lua" },
         info = {
             commands = {
                 "rm -rf iso_root",
