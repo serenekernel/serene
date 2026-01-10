@@ -23,7 +23,7 @@ void userspace_init() {
 }
 
 void dispatch_syscall(uint64_t syscall_nr, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4, uint64_t arg5) {
-    printf("syscall! 0x%llx, 0x%llx, 0x%llx, 0x%llx, 0x%llx, 0x%llx, 0x%llx\n", syscall_nr, arg1, arg2, arg3, arg4, arg5);
+    printf("syscall! 0x%llx, 0x%llx, 0x%llx, 0x%llx, 0x%llx, 0x%llx\n", syscall_nr, arg1, arg2, arg3, arg4, arg5);
     if(syscall_nr == 0xcafebabe) {
         printf("task dies now!!\n");
         thread_t* thread = CPU_LOCAL_READ(current_thread);
