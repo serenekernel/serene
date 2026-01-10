@@ -39,11 +39,12 @@ function build(build_info)
     local module = {
         name = "limine-serenebuild-template",
         module_type = "project",
-        depends_on = { 
-            "build_modules/kernel.lua", 
-            "build_modules/ovmf.lua", 
+        depends_on = {
+            "build_modules/kernel.lua",
+            "build_modules/test.lua",
+            "build_modules/ovmf.lua",
             "build_modules/limine.lua",
-            "build_modules/make_iso.lua" 
+            "build_modules/make_iso.lua"
         },
         info = {
             run_targets = {
