@@ -8,6 +8,7 @@ use spin::Mutex;
 use x86_64::instructions::port::Port;
 
 #[inline(always)]
+#[doc(hidden)]
 pub fn raw_syscall(a0: usize, a1: usize, a2: usize, a3: usize, a4: usize, a5: usize) -> usize {
     let ret: usize;
 
@@ -31,9 +32,52 @@ pub fn raw_syscall(a0: usize, a1: usize, a2: usize, a3: usize, a4: usize, a5: us
     ret
 }
 
-pub struct Writer;
+const SYS_EXIT: usize = 1;
+const SYS_CAP_PORT_GRANT: usize = 32;
 
-impl Writer {
+#[repr(isize)]
+#[derive(Debug, Copy, Clone)]
+enum SyscallError {
+    InvalidArgument = -1,
+    InvalidSyscallNumber = -2,
+}
+
+#[inline(always)]
+#[doc(hidden)]
+fn decode_ret(ret: usize) -> Result<usize, SyscallError> {
+    let v = ret as isize;
+    if v < 0 {
+        Err(unsafe { core::mem::transmute(v) })
+    } else {
+        Ok(ret)
+    }
+}
+
+pub fn sys_exit(code: usize) -> ! {
+    let _ = raw_syscall(SYS_EXIT, code, 0, 0, 0, 0);
+    loop {}
+}
+
+pub fn sys_cap_port_grant(start_port: u16, number_of_ports: u16) -> Result<(), SyscallError> {
+    let ret = raw_syscall(
+        SYS_CAP_PORT_GRANT,
+        start_port as usize,
+        number_of_ports as usize,
+        0,
+        0,
+        0,
+    );
+    decode_ret(ret).map(|_| ())
+}
+
+pub fn test() -> Result<(), SyscallError> {
+    let ret = raw_syscall(12, 0, 0, 0, 0, 0);
+    decode_ret(ret).map(|_| ())
+}
+
+pub struct DebugWriter;
+
+impl DebugWriter {
     pub fn write_byte(&mut self, byte: u8) {
         unsafe {
             Port::new(0xe9).write(byte);
@@ -46,7 +90,7 @@ impl Writer {
     }
 }
 
-impl fmt::Write for Writer {
+impl fmt::Write for DebugWriter {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         self.write_string(s);
         Ok(())
@@ -54,7 +98,7 @@ impl fmt::Write for Writer {
 }
 
 lazy_static! {
-    pub static ref WRITER: Mutex<Writer> = Mutex::new(Writer {});
+    pub static ref WRITER: Mutex<DebugWriter> = Mutex::new(DebugWriter {});
 }
 
 #[doc(hidden)]
@@ -82,8 +126,8 @@ fn pci_read_config(bus: u8, slot: u8, func: u8, offset: u8) -> u32 {
         | ((offset as u32) & 0xfc);
 
     unsafe {
-        let mut port_address = Port::new(0xCF8);
-        let mut port_data = Port::new(0xCFC);
+        let mut port_address = Port::new(0xcf8);
+        let mut port_data = Port::new(0xcfc);
         port_address.write(address);
         port_data.read()
     }
@@ -202,17 +246,16 @@ fn pci_scan() {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn _start() -> ! {
-    raw_syscall(0xdeadbeaf, 0xe9, 1, 0, 0, 0);
-    raw_syscall(0xdeadbeaf, 0xCF8, 4, 0, 0, 0);
-    raw_syscall(0xdeadbeaf, 0xCFC, 4, 0, 0, 0);
+    sys_cap_port_grant(0xe9, 1).expect("sys_cap_port_grant failed");
+    sys_cap_port_grant(0xcf8, 4).expect("sys_cap_port_grant failed");
+    sys_cap_port_grant(0xcfc, 4).expect("sys_cap_port_grant failed");
     println!("Hello world!");
     pci_scan();
-    raw_syscall(0xcafebabe, 0, 0, 0, 0, 0);
-
-    loop {}
+    sys_exit(0);
 }
 
 #[panic_handler]
-fn panic(_info: &PanicInfo) -> ! {
-    loop {}
+fn panic(info: &PanicInfo) -> ! {
+    println!("panic: {}", info);
+    sys_exit(1);
 }
