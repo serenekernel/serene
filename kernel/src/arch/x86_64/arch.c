@@ -2,7 +2,6 @@
 #include <arch/hardware/lapic.h>
 #include <arch/interrupts.h>
 #include <arch/msr.h>
-#include <arch/userspace.h>
 #include <common/arch.h>
 #include <common/cpu_local.h>
 #include <common/interrupts.h>
@@ -12,6 +11,7 @@
 #include <common/requests.h>
 #include <common/sched.h>
 #include <common/spinlock.h>
+#include <common/userspace.h>
 #include <limine.h>
 #include <memory/pagedb.h>
 #include <memory/pmm.h>

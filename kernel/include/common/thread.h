@@ -5,7 +5,7 @@
 // Forward declaration to break circular dependency
 typedef struct process process_t;
 
-typedef enum {
+typedef enum : uint64_t {
     THREAD_STATUS_RUNNING,
     THREAD_STATUS_READY,
     THREAD_STATUS_BLOCKED,
