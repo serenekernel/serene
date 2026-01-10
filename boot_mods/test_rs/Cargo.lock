@@ -30,6 +30,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b39cdef0fa800fc44525c84ccb54a029961a8215f9619753635a9c0d2538d46d"
 
 [[package]]
+name = "serenelib"
+version = "0.1.0"
+source = "git+ssh://git@github.com/serenekernel/serenelib.git#89d22113ebcd611b2efb49404eb74670995bb913"
+dependencies = [
+ "lazy_static",
+ "spin 0.5.2",
+ "x86_64",
+]
+
+[[package]]
 name = "spin"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -46,6 +56,7 @@ name = "test"
 version = "0.1.0"
 dependencies = [
  "lazy_static",
+ "serenelib",
  "spin 0.5.2",
  "x86_64",
 ]
