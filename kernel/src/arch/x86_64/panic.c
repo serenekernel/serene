@@ -5,30 +5,7 @@
 #include <common/interrupts.h>
 #include <memory/vmm.h>
 #include <stdio.h>
-
-[[nodiscard]] static inline uint64_t __read_cr0(void) {
-    uint64_t value;
-    __asm__ volatile("mov %%cr0, %0" : "=r"(value));
-    return value;
-}
-
-[[nodiscard]] static inline uintptr_t __read_cr4(void) {
-    uintptr_t value;
-    __asm__ volatile("mov %%cr4, %0" : "=r"(value));
-    return value;
-}
-
-[[nodiscard]] static inline uintptr_t __read_cr8(void) {
-    uintptr_t value;
-    __asm__ volatile("mov %%cr8, %0" : "=r"(value));
-    return value;
-}
-
-[[nodiscard]] static inline uintptr_t __read_cr3(void) {
-    uintptr_t value;
-    __asm__ volatile("mov %%cr3, %0" : "=r"(value));
-    return value;
-}
+#include <arch/cr.h>
 
 const char* name_table[22] = { "Divide Error",
                                "Debug Exception",

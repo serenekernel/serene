@@ -1,14 +1,16 @@
 #include "arch/cpu_local.h"
+#include "arch/fpu.h"
 #include "arch/gdt.h"
 #include "arch/hardware/lapic.h"
 #include "common/arch.h"
 #include "common/interrupts.h"
-#include <common/process.h>
+
 #include <arch/interrupts.h>
 #include <arch/msr.h>
 #include <assert.h>
 #include <common/cpu_local.h>
 #include <common/memory.h>
+#include <common/process.h>
 #include <common/sched.h>
 #include <common/spinlock.h>
 #include <memory/vmm.h>
@@ -46,12 +48,10 @@ void reaper_thread() {
                     thread_t* to_reap = current;
 
                     if(to_reap->thread_common.process != nullptr) {
-                        printf("[REAPER] Found terminated thread TID %u PID %u (reaping=%p)\n",
-                               to_reap->thread_common.tid, to_reap->thread_common.process->pid, (void*)to_reap);
+                        printf("[REAPER] Found terminated thread TID %u PID %u (reaping=%p)\n", to_reap->thread_common.tid, to_reap->thread_common.process->pid, (void*) to_reap);
                         to_reap->thread_common.process->thread_count--;
                     } else {
-                        printf("[REAPER] Found terminated thread TID %u PID <none> (reaping=%p)\n",
-                               to_reap->thread_common.tid, (void*)to_reap);
+                        printf("[REAPER] Found terminated thread TID %u PID <none> (reaping=%p)\n", to_reap->thread_common.tid, (void*) to_reap);
                     }
                     if(prev != nullptr) {
                         prev->sched_next = current->sched_next;
@@ -73,15 +73,13 @@ void reaper_thread() {
                     current = (thread_t*) current->sched_next;
                 }
             }
-
         }
         {
             process_t* current = g_proc_head;
             while(current != nullptr) {
                 if(current->happy_to_die && current->thread_count == 0) {
                     process_t* to_reap = current;
-                    printf("[REAPER] Found terminated process PID %u (reaping=%p)\n",
-                           to_reap->pid, (void*)to_reap);
+                    printf("[REAPER] Found terminated process PID %u (reaping=%p)\n", to_reap->pid, (void*) to_reap);
 
                     if(to_reap->prev != nullptr) {
                         to_reap->prev->next = to_reap->next;
@@ -147,18 +145,40 @@ void sched_init_ap() {
     CPU_LOCAL_WRITE(current_thread, g_scheduler.idle_thread);
 }
 
+
+void __context_switch(thread_t* old_thread, thread_t* new_thread, thread_status_t old_thread_status);
+void __userspace_init();
+
+void thread_fpu_init(thread_t* thread) {
+    bool __irq = interrupts_enabled();
+    disable_interrupts();
+
+    thread_t* current_thread = CPU_LOCAL_READ(current_thread);
+    if(current_thread != nullptr && current_thread->fpu_area != nullptr) fpu_save(current_thread->fpu_area);
+    fpu_load(thread->fpu_area);
+    uint16_t x87cw = (1 << 0) | (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 5) | (0b11 << 8);
+    asm volatile("fldcw %0" : : "m"(x87cw) : "memory");
+    uint32_t mxcsr = (1 << 7) | (1 << 8) | (1 << 9) | (1 << 10) | (1 << 11) | (1 << 12);
+    asm volatile("ldmxcsr %0" : : "m"(mxcsr) : "memory");
+    fpu_save(thread->fpu_area);
+    if(current_thread != nullptr && current_thread->fpu_area != nullptr) fpu_load(current_thread->fpu_area);
+
+    if(__irq) enable_interrupts();
+}
+
 thread_t* sched_thread_kernel_init(virt_addr_t entry_point) {
-    thread_t* thread = (thread_t*) vmm_alloc_backed(&kernel_allocator, 1, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true);
+    thread_t* thread = (thread_t*) vmm_alloc_backed(&kernel_allocator, ALIGN_UP(ALIGN_UP(sizeof(thread_t) + fpu_area_size(), 16), PAGE_SIZE_DEFAULT) / PAGE_SIZE_DEFAULT, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true);
     thread->thread_common.process = nullptr;
     thread->thread_common.tid = next_tid++;
     thread->thread_common.address_space = &kernel_allocator;
+    thread->fpu_area = (void*) ALIGN_UP((virt_addr_t) thread + sizeof(thread_t), 16);
     thread->sched_next = nullptr;
     thread->proc_next = nullptr;
     thread->thread_rsp = vmm_alloc_backed(&kernel_allocator, 4, VM_ACCESS_USER, VM_CACHE_NORMAL, VM_READ_WRITE, true) + (4 * PAGE_SIZE_DEFAULT);
     thread->syscall_rsp = 0;
     thread->kernel_rsp = vmm_alloc_backed(&kernel_allocator, 4, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true) + (4 * PAGE_SIZE_DEFAULT);
     thread->thread_common.status = THREAD_STATUS_READY;
-
+    thread_fpu_init(thread);
     // @todo: holy shit what the FUCK AM I THINKING
     // Set up initial stack frame for context switch
     // We need to push the SysV ABI callee-saved registers: rbx, rbp, r12, r13, r14, r15
@@ -176,24 +196,21 @@ thread_t* sched_thread_kernel_init(virt_addr_t entry_point) {
     return thread;
 }
 
-void __context_switch(thread_t* old_thread, thread_t* new_thread, thread_status_t old_thread_status);
-void __userspace_init();
-
 thread_t* sched_thread_user_init(vm_allocator_t* address_space, virt_addr_t entry_point) {
     assert(address_space->kernel_paging_structures_base != 0 && "cr3 for task is 0");
-    thread_t* thread = (thread_t*) vmm_alloc_backed(&kernel_allocator, 1, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true);
+    thread_t* thread = (thread_t*) vmm_alloc_backed(&kernel_allocator, ALIGN_UP(sizeof(thread_t) + fpu_area_size(), PAGE_SIZE_DEFAULT) / PAGE_SIZE_DEFAULT, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true);
     thread->thread_common.process = nullptr;
     thread->thread_common.tid = next_tid++;
     thread->thread_common.address_space = address_space;
+    thread->fpu_area = (void*) ALIGN_UP((virt_addr_t) thread + sizeof(thread_t), 16);
     thread->sched_next = nullptr;
     thread->proc_next = nullptr;
 
     thread->thread_rsp = vmm_alloc_backed(address_space, 4, VM_ACCESS_USER, VM_CACHE_NORMAL, VM_READ_WRITE, false) + (4 * PAGE_SIZE_DEFAULT) - 8;
     thread->syscall_rsp = 0;
     thread->kernel_rsp = vmm_alloc_backed(&kernel_allocator, 4, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true) + (4 * PAGE_SIZE_DEFAULT);
-    printf("thread_rsp: 0x%llx\n", thread->thread_rsp);
-    printf("kernel_rsp: 0x%llx\n", thread->kernel_rsp);
     thread->thread_common.status = THREAD_STATUS_READY;
+    thread_fpu_init(thread);
 
     uint64_t* stack = (uint64_t*) thread->kernel_rsp;
     *(--stack) = thread->thread_rsp; // user rsp (set by __userspace_init)
@@ -267,6 +284,13 @@ void sched_yield_status(thread_status_t new_status) {
         for(size_t i = 0; i < next_thread->thread_common.process->io_perm_map_num; i++) {
             tss_io_allow_port(CPU_LOCAL_READ(cpu_tss), next_thread->thread_common.process->io_perm_map[i]);
         }
+    }
+
+    if(current_thread->fpu_area != nullptr) {
+        fpu_save(current_thread->fpu_area);
+    }
+    if(next_thread->fpu_area != nullptr) {
+        fpu_load(next_thread->fpu_area);
     }
 
     sched_set_current_thread(next_thread);

@@ -1,3 +1,4 @@
+#include "arch/cr.h"
 #include <arch/cpuid.h>
 #include <arch/msr.h>
 #include <common/arch.h>
@@ -321,7 +322,7 @@ void __setup_pat() {
 
 void vm_address_space_switch(vm_allocator_t* allocator) {
     arch_memory_barrier();
-    asm volatile("mov %0, %%cr3" ::"r"(allocator->kernel_paging_structures_base) : "memory");
+    __write_cr3(allocator->kernel_paging_structures_base);
     arch_memory_barrier();
 }
 

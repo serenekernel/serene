@@ -6,6 +6,7 @@
 #include <common/memory.h>
 #include <memory/vmm.h>
 #include <stdint.h>
+#include <arch/cr.h>
 
 typedef struct {
     uint16_t base_low;

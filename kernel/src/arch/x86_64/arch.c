@@ -1,3 +1,4 @@
+#include "arch/fpu.h"
 #include <arch/gdt.h>
 #include <arch/hardware/lapic.h>
 #include <arch/interrupts.h>
@@ -74,8 +75,6 @@ void setup_uacpi() {
     printf("uACPI INIT OK!\n");
 }
 
-void __enable_sse();
-
 void setup_arch() {
     init_cpu_local();
 
@@ -104,7 +103,8 @@ void setup_arch() {
     }
     ipi_init_bsp(highest_apic_id);
     printf("LAPIC INIT OK!\n");
-    __enable_sse();
+    fpu_init_bsp();
+    printf("FPU INIT OK!\n");
 }
 
 void ps2_test(interrupt_frame_t*) {
@@ -200,6 +200,7 @@ void arch_init_ap(struct limine_mp_info* info) {
     ipi_init_ap();
     setup_idt_ap();
     lapic_init_ap();
+    fpu_init_ap();
     spinlock_unlock(&arch_ap_init_lock);
 
     enable_interrupts();
