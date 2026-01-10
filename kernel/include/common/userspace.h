@@ -9,7 +9,7 @@ typedef enum : uint64_t {
 
 typedef enum : int64_t {
     SYSCALL_ERR_INVALID_ARGUMENT = -1,
-    SYSCALL_INVALID_SYSCALL = -2,
+    SYSCALL_ERR_INVALID_SYSCALL = -2,
 } syscall_err_t;
 
 void userspace_init();

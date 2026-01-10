@@ -187,8 +187,8 @@ thread_t* sched_thread_user_init(vm_allocator_t* address_space, virt_addr_t entr
     thread->thread_common.address_space = address_space;
     thread->sched_next = nullptr;
     thread->proc_next = nullptr;
-    // @todo: we should prob move this into the userspace allocator
-    thread->thread_rsp = vmm_alloc_backed(address_space, 4, VM_ACCESS_USER, VM_CACHE_NORMAL, VM_READ_WRITE, false) + (4 * PAGE_SIZE_DEFAULT);
+
+    thread->thread_rsp = vmm_alloc_backed(address_space, 4, VM_ACCESS_USER, VM_CACHE_NORMAL, VM_READ_WRITE, false) + (4 * PAGE_SIZE_DEFAULT) - 8;
     thread->syscall_rsp = 0;
     thread->kernel_rsp = vmm_alloc_backed(&kernel_allocator, 4, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true) + (4 * PAGE_SIZE_DEFAULT);
     printf("thread_rsp: 0x%llx\n", thread->thread_rsp);

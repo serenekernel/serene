@@ -92,7 +92,7 @@ __attribute__((noreturn)) void arch_panic_int(interrupt_frame_t* frame) {
     } else {
         printf("unknown (0x%x | %d)", frame->vector, frame->error);
     }
-    printf(" on core %d\n", apic_id);
+    printf(" on core %d in ring %d\n", apic_id, (frame->cs & 0b11));
 
     printf("rax = 0x%016llx, rbx = 0x%016llx\n", frame->rax, frame->rbx);
     printf("rcx = 0x%016llx, rdx = 0x%016llx\n", frame->rcx, frame->rdx);
