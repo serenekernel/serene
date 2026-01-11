@@ -178,66 +178,26 @@ void vmm_free(vm_allocator_t* allocator, virt_addr_t addr) {
     }
 }
 
+#define MAP_SEGMENT(name, map_type) { \
+    extern char name##_start[]; \
+    extern char name##_end[]; \
+    uintptr_t offset = name##_start - kernel_start; \
+    uintptr_t size = name##_end - name##_start; \
+    printf("%s - 0x%llx, 0x%llx\n", #name, offset, size); \
+    for (uintptr_t i = offset; i < offset + size; i += PAGE_SIZE_DEFAULT) { \
+        vm_map_page(&kernel_allocator, kernel_virt + i, kernel_phys + i, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, map_type); \
+    } \
+}
+
 void vm_map_kernel() {
     extern char kernel_start[];
-    extern char text_start[];
-    extern char text_end[];
-    extern char rodata_start[];
-    extern char rodata_end[];
-    extern char data_start[];
-    extern char data_end[];
-    extern char requests_start[];
-    extern char requests_end[];
+    phys_addr_t kernel_phys = (phys_addr_t)kernel_mapping.response->physical_base;
+    virt_addr_t kernel_virt = (virt_addr_t)kernel_start;
 
-    uintptr_t kernel_phys = (uintptr_t)kernel_mapping.response->physical_base;
-    uintptr_t kernel_virt = (uintptr_t) kernel_start;
-
-    uintptr_t text_offset = text_start - kernel_start;
-    uintptr_t text_size = text_end - text_start;
-
-    uintptr_t rodata_offset = rodata_start - kernel_start;
-    uintptr_t rodata_size = rodata_end - rodata_start;
-
-    uintptr_t data_offset = data_start - kernel_start;
-    uintptr_t data_size = data_end - data_start;
-
-    uintptr_t requests_offset = requests_start - kernel_start;
-    uintptr_t requests_size = requests_end - requests_start;
-
-    printf("0x%llx, 0x%llx\n", text_offset, text_size);
-    printf("0x%llx, 0x%llx\n", rodata_offset, rodata_size);
-    printf("0x%llx, 0x%llx\n", data_offset, data_size);
-    printf("0x%llx, 0x%llx\n", requests_offset, requests_size);
-
-    for (uintptr_t i = text_offset; i < text_offset + text_size; i += PAGE_SIZE_DEFAULT) {
-        vm_map_page(&kernel_allocator, kernel_virt + i, kernel_phys + i, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_ONLY | VM_EXECUTE);
-    }
-
-    for (uintptr_t i = rodata_offset; i < rodata_offset + rodata_size; i += PAGE_SIZE_DEFAULT) {
-        vm_map_page(&kernel_allocator, kernel_virt + i, kernel_phys + i, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_ONLY);
-    }
-
-    for (uintptr_t i = data_offset; i < data_offset + data_size; i += PAGE_SIZE_DEFAULT) {
-        vm_map_page(&kernel_allocator, kernel_virt + i, kernel_phys + i, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE);
-    }
-
-    for (uintptr_t i = requests_offset; i < requests_offset + requests_size; i += PAGE_SIZE_DEFAULT) {
-        vm_map_page(&kernel_allocator, kernel_virt + i, kernel_phys + i, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE);
-    }
-
-    // virt_addr_t start = ALIGN_DOWN((virt_addr_t) &kernel_start, 4096);
-    // virt_addr_t end = ALIGN_UP((virt_addr_t) &kernel_end, 4096);
-
-    // size_t kernel_page_count = ALIGN_UP((end - start), PAGE_SIZE_DEFAULT) / PAGE_SIZE_DEFAULT;
-    // // kernel_mapping->virtual_base is the source virtual base (where kernel is currently linked),
-    // // kernel_mapping->physical_base is the corresponding physical base. we map target virtual
-    // // addresses (the kernel's higher-half addresses) to the physical frames.
-    // printf("kernel_mapping.response->virtual_base=%p\n", kernel_mapping.response->virtual_base);
-    // printf("kernel_mapping.response->physical_base=%p\n", kernel_mapping.response->physical_base);
-    // printf("&kernel_start=%p &kernel_end=%p, kernel_page_count=%lu\n", &kernel_start, &kernel_end, kernel_page_count);
-
-    // // @todo: parse the kernel binary CORRECTLY
-    // vm_map_pages_continuous(&kernel_allocator, kernel_mapping.response->virtual_base, kernel_mapping.response->physical_base, kernel_page_count, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE | VM_EXECUTE);
+    MAP_SEGMENT(text, VM_READ_ONLY | VM_EXECUTE);
+    MAP_SEGMENT(rodata, VM_READ_ONLY);
+    MAP_SEGMENT(data, VM_READ_WRITE);
+    MAP_SEGMENT(requests, VM_READ_WRITE);
 
     for(size_t i = 0; i < memmap_request.response->entry_count; i++) {
         struct limine_memmap_entry* current = memmap_request.response->entries[i];
