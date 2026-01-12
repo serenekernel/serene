@@ -11,3 +11,4 @@ compile_commands.json
 
 boot_mods/test
 boot_mods/test.o
+.luarc.json
