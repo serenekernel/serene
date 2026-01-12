@@ -43,3 +43,5 @@ typedef struct {
 #define PTYPE_LOAD 1 /* Loadable program segment */
 #define PFLAGS_EXECUTE (1 << 0) /* Segment is executable */
 #define PFLAGS_WRITE (1 << 1) /* Segment is writable */
+
+void kproc_create(const elf64_elf_header_t* elf_header);

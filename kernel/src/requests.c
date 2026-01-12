@@ -30,15 +30,22 @@ LIMINE_REQUEST volatile struct limine_internal_module elf_test = {
     .flags = LIMINE_INTERNAL_MODULE_REQUIRED,
 };
 
+LIMINE_REQUEST volatile struct limine_internal_module init_system = {
+    .path = "init_system.elf",
+    .string = "init-system-module",
+    .flags = LIMINE_INTERNAL_MODULE_REQUIRED,
+};
+
 LIMINE_REQUEST volatile struct limine_internal_module* modules[] = {
-    &elf_test
+    &elf_test,
+    &init_system
 };
 
 LIMINE_REQUEST volatile struct limine_module_request module_request = {
     .id = LIMINE_MODULE_REQUEST_ID,
     .revision = 1,
     .internal_modules = (struct limine_internal_module**)&modules,
-    .internal_module_count = 1
+    .internal_module_count = 2
 };
 
 LIMINE_REQUEST volatile uint64_t limine_base_revision[] = LIMINE_BASE_REVISION(4);
