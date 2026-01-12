@@ -97,8 +97,8 @@ table.insert(include_dirs, c.include_dir(path(fab.build_dir(), limine_protocol.p
 table.insert(include_dirs, c.include_dir(path(fab.build_dir(), flanterm.path, "src")))
 
 local external_sources = {}
-table.extend(external_sources, sources(fab.glob("source/*.c", { relative_to = path(fab.build_dir(), uacpi.path) })))
-table.extend(external_sources, sources(fab.glob("src/*.c", { relative_to = path(fab.build_dir(), flanterm.path) })))
+table.extend(external_sources, sources(fab.glob("source/*.c", { relative_to = uacpi.path })))
+table.extend(external_sources, sources(fab.glob("src/*.c", { relative_to = flanterm.path })))
 
 if opt_arch == "x86_64" then
     -- --- Includes
@@ -144,5 +144,9 @@ if opt_arch == "x86_64" then
         "-znoexecstack"
     })
 
-    -- kernel("kernel.elf")
+    return {
+        install = {
+            ["kernel.elf"] = kernel
+        }
+    }
 end
