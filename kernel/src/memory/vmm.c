@@ -155,6 +155,10 @@ virt_addr_t vmm_try_alloc_backed(vm_allocator_t* allocator, virt_addr_t address,
     return new_node->base;
 }
 
+virt_addr_t vmm_alloc_object(vm_allocator_t* allocator, size_t object_size) {
+    size_t page_count = ALIGN_UP(object_size, PAGE_SIZE_DEFAULT) / PAGE_SIZE_DEFAULT;
+    return vmm_alloc_backed(allocator, page_count, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true);
+}
 
 void vmm_free(vm_allocator_t* allocator, virt_addr_t addr) {
     rb_node_t* node = rb_find_exact(&allocator->vm_tree, addr);

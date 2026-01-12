@@ -171,14 +171,13 @@ thread_t* sched_thread_kernel_init(virt_addr_t entry_point) {
     thread->thread_common.process = nullptr;
     thread->thread_common.tid = next_tid++;
     thread->thread_common.address_space = &kernel_allocator;
-    thread->fpu_area = (void*) ALIGN_UP((virt_addr_t) thread + sizeof(thread_t), 16);
+    thread->fpu_area = nullptr;
     thread->sched_next = nullptr;
     thread->proc_next = nullptr;
     thread->thread_rsp = vmm_alloc_backed(&kernel_allocator, 4, VM_ACCESS_USER, VM_CACHE_NORMAL, VM_READ_WRITE, true) + (4 * PAGE_SIZE_DEFAULT);
     thread->syscall_rsp = 0;
     thread->kernel_rsp = vmm_alloc_backed(&kernel_allocator, 4, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true) + (4 * PAGE_SIZE_DEFAULT);
     thread->thread_common.status = THREAD_STATUS_READY;
-    thread_fpu_init(thread);
     // @todo: holy shit what the FUCK AM I THINKING
     // Set up initial stack frame for context switch
     // We need to push the SysV ABI callee-saved registers: rbx, rbp, r12, r13, r14, r15
@@ -198,11 +197,11 @@ thread_t* sched_thread_kernel_init(virt_addr_t entry_point) {
 
 thread_t* sched_thread_user_init(vm_allocator_t* address_space, virt_addr_t entry_point) {
     assert(address_space->kernel_paging_structures_base != 0 && "cr3 for task is 0");
-    thread_t* thread = (thread_t*) vmm_alloc_backed(&kernel_allocator, ALIGN_UP(sizeof(thread_t) + fpu_area_size(), PAGE_SIZE_DEFAULT) / PAGE_SIZE_DEFAULT, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true);
+    thread_t* thread = (thread_t*) vmm_alloc_backed(&kernel_allocator, ALIGN_UP(ALIGN_UP(sizeof(thread_t) + fpu_area_size(), 64), PAGE_SIZE_DEFAULT) / PAGE_SIZE_DEFAULT, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true);
     thread->thread_common.process = nullptr;
     thread->thread_common.tid = next_tid++;
     thread->thread_common.address_space = address_space;
-    thread->fpu_area = (void*) ALIGN_UP((virt_addr_t) thread + sizeof(thread_t), 16);
+    thread->fpu_area = (void*) ALIGN_UP((virt_addr_t) thread + sizeof(thread_t), 64);
     thread->sched_next = nullptr;
     thread->proc_next = nullptr;
 
