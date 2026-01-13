@@ -9,4 +9,8 @@ extern volatile struct limine_executable_address_request kernel_mapping;
 extern volatile struct limine_mp_request mp_request;
 extern volatile struct limine_rsdp_request rsdp_request;
 extern volatile struct limine_module_request module_request;
+
+#define TO_HHDM(x) (((uintptr_t)(x) + hhdm_request.response->offset))
+#define FROM_HHDM(x) (((uintptr_t)(x) - hhdm_request.response->offset))
+
 void verify_requests(void);

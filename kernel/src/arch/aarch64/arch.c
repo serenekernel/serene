@@ -36,7 +36,7 @@ void arch_init_bsp() {
         }
     }
 
-    virt_addr_t virtual_start = (virt_addr_t) highest_phys_address + hhdm_request.response->offset;
+    virt_addr_t virtual_start = (virt_addr_t) TO_HHDM(highest_phys_address);
 
     vmm_kernel_init(&kernel_allocator, virtual_start, virtual_start + 0x80000000);
     printf("vmm\n");

@@ -18,11 +18,11 @@ phys_addr_t pmm_alloc_page() {
     pmm_node_t* current = head;
     if(current == NULL) { return 0; }
     head = head->next;
-    return (phys_addr_t) current - hhdm_request.response->offset;
+    return (phys_addr_t) FROM_HHDM(current);
 }
 
 void pmm_free_page(phys_addr_t addr) {
-    pmm_node_t* node = (pmm_node_t*) (addr + hhdm_request.response->offset);
+    pmm_node_t* node = (pmm_node_t*) TO_HHDM(addr);
     node->next = head;
     head = node;
 }

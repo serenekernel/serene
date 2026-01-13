@@ -70,7 +70,7 @@ vm_node_t* vmm_alloc_raw(vm_allocator_t* allocator, size_t page_count) {
         return 0;
     }
 
-    vm_node_t* new_node = (vm_node_t*) (node_phys + hhdm_request.response->offset);
+    vm_node_t* new_node = (vm_node_t*) (TO_HHDM(node_phys));
     new_node->base = alloc_addr;
     new_node->size = total_size;
 
@@ -137,7 +137,7 @@ virt_addr_t vmm_try_alloc_backed(vm_allocator_t* allocator, virt_addr_t address,
         return 0;
     }
 
-    vm_node_t* new_node = (vm_node_t*) (node_phys + hhdm_request.response->offset);
+    vm_node_t* new_node = (vm_node_t*) (TO_HHDM(node_phys));
     new_node->base = address;
     new_node->size = total_size;
     new_node->options_type = VM_OPTIONS_BACKED;
@@ -178,7 +178,7 @@ void vmm_free(vm_allocator_t* allocator, virt_addr_t addr) {
             }
         }
 
-        pmm_free_page((phys_addr_t) vm_node - hhdm_request.response->offset);
+        pmm_free_page((phys_addr_t) FROM_HHDM(vm_node));
     }
 }
 
@@ -207,7 +207,7 @@ void vm_map_kernel() {
         struct limine_memmap_entry* current = memmap_request.response->entries[i];
 
         phys_addr_t phys_base = ALIGN_DOWN(current->base, 4096);
-        virt_addr_t virt_base = phys_base + hhdm_request.response->offset;
+        virt_addr_t virt_base = FROM_HHDM(phys_base);
         size_t page_count = ALIGN_UP(current->length, 4096) / 4096;
 
         printf("0x%016llx -> 0x%016llx (0x%08llx | %s)", phys_base, virt_base, current->length, limine_memmap_type_to_str(current->type));
