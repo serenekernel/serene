@@ -122,8 +122,10 @@ syscall_err_t syscall_sys_endpoint_send(uint64_t handle_value, uint64_t payload,
     endpoint_t* endpoint = (endpoint_t*) handle_get(handle);
     SYSCALL_ASSERT_PARAM(endpoint != NULL);
     SYSCALL_ASSERT_PARAM(handle.capabilities & HANDLE_CAPS_ENDPOINT_SEND);
-
     SYSCALL_ASSERT_PARAM(payload_length < PAGE_SIZE_DEFAULT * 4);
+
+    
+
     message_t* message = (message_t*)vmm_alloc_object(&kernel_allocator, sizeof(message_t*) + payload_length);
     message->length = (uint32_t) payload_length;
     message->type = 0;

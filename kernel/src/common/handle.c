@@ -5,10 +5,10 @@
 #include <stdint.h>
 
 sparse_array_t* handle_array = NULL;
-uint32_t handle_next_id = 1;
+uint32_t handle_next_id = 1; // 0 is invalid
 
 void handle_setup() {
-    handle_array = sparse_array_create(sizeof(uintptr_t), 1024 * sizeof(uintptr_t));
+    handle_array = sparse_array_create(sizeof(handle_meta_t), 1024 * sizeof(handle_meta_t));
 }
 
 handle_t handle_create(handle_type_t type, uint8_t caps, void* ptr) {
@@ -19,28 +19,46 @@ handle_t handle_create(handle_type_t type, uint8_t caps, void* ptr) {
         .capabilities = caps,
         .id = id
     };
+    
     handle_set(handle, ptr);
     return handle;
 }
 
 void handle_delete(handle_t handle) {
     // @todo: refcount
-    uintptr_t* index = (uintptr_t*)sparse_array_access(handle_array, handle.id);
+    handle_meta_t* index = (handle_meta_t*)sparse_array_access(handle_array, handle.id);
     if(!index) {
         return;
     }
-    *index = 0;
+    index->valid = false;
 }
 
 void* handle_get(handle_t handle) {
-    uintptr_t* index = (uintptr_t*)sparse_array_access(handle_array, handle.id);
+    handle_meta_t* index = (handle_meta_t*)sparse_array_access(handle_array, handle.id);
     if(!index) {
         return nullptr;
     }
-    return (void*)(*index);
+    return index->data;
 }
 
 void handle_set(handle_t handle, void* ptr) {
-    uintptr_t* index = (uintptr_t*)sparse_array_access_demand(handle_array, handle.id);
-    *index = (uintptr_t)ptr;
+    handle_meta_t* index = (handle_meta_t*)sparse_array_access_demand(handle_array, handle.id);
+    index->data = ptr;
+    index->valid = true;
+}
+
+void handle_set_owner(uint32_t handle_id, uint32_t thread_id) {
+    handle_meta_t* index = (handle_meta_t*)sparse_array_access(handle_array, handle_id);
+    if(!index) {
+        return;
+    }
+    index->owner_thread = thread_id;
+}
+
+uint32_t handle_get_owner(uint32_t handle_id) {
+    handle_meta_t* index = (handle_meta_t*)sparse_array_access(handle_array, handle_id);
+    if(!index || !index->owner_thread) {
+        return 0;
+    }
+    return index->owner_thread;
 }
