@@ -21,8 +21,7 @@
 #include <memory/vmm.h>
 #include <sparse_array.h>
 #include <stdio.h>
-#include <uacpi/internal/tables.h>
-#include <uacpi/status.h>
+#include <common/acpi.h>
 
 const char* arch_get_name(void) {
     return "x86_64";
@@ -54,7 +53,7 @@ void setup_memory() {
         }
     }
 
-    virt_addr_t virtual_start = (virt_addr_t) highest_phys_address + hhdm_request.response->offset;
+    virt_addr_t virtual_start = (virt_addr_t) TO_HHDM(highest_phys_address);
 
     vmm_kernel_init(&kernel_allocator, virtual_start, virtual_start + 0x800000000);
     vm_paging_bsp_init(&kernel_allocator);
@@ -63,18 +62,6 @@ void setup_memory() {
     printf("we pray\n");
     vm_address_space_switch(&kernel_allocator);
     printf("we didn't die\n");
-    // kernel_allocator.page_db = sparse_array_create(sizeof(page_db_entry_t), ((kernel_allocator.end - kernel_allocator.start) / PAGE_SIZE_DEFAULT) * sizeof(page_db_entry_t));
-}
-
-void setup_uacpi() {
-    phys_addr_t phys = pmm_alloc_page();
-    virt_addr_t virt = vmm_alloc(&kernel_allocator, 1);
-    vm_map_page(&kernel_allocator, virt, phys, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE);
-    if(uacpi_setup_early_table_access((void*) virt, 1 * PAGE_SIZE_DEFAULT) != UACPI_STATUS_OK) {
-        printf("uACPI init VERY NOT okay!\n");
-        arch_die();
-    }
-    printf("uACPI INIT OK!\n");
 }
 
 void setup_arch() {
@@ -86,9 +73,9 @@ void setup_arch() {
     setup_idt_bsp();
     printf("IDT INIT OK!\n");
     if(rsdp_request.response != NULL) {
-        setup_uacpi();
+        acpi_init();
     } else {
-        printf("uACPI init NOT okay\n");
+        printf("ACPI init NOT okay\n");
     }
 
     lapic_init_bsp();

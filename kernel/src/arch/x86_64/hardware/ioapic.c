@@ -1,9 +1,7 @@
 #include "common/io.h"
 #include "common/memory.h"
+#include <common/acpi.h>
 #include "memory/vmm.h"
-#include "uacpi/acpi.h"
-#include "uacpi/tables.h"
-
 #include <arch/hardware/lapic.h>
 #include <assert.h>
 #include <stddef.h>
@@ -40,6 +38,9 @@
 io_apic_t ioapics[MAX_IOAPICS];
 size_t ioapic_count = 0;
 
+io_apic_iso_t io_apic_isos[32];
+size_t io_apic_iso_count = 0;
+
 static uint32_t ioapic_read(io_apic_t* ioapic, uint32_t reg) {
     mmio_write_u32(ioapic->mmio, reg);
     return mmio_read_u32(ioapic->mmio + (4 * 4));
@@ -55,12 +56,83 @@ static void ioapic_set_entry(io_apic_t* ioapic, uint8_t index, uint64_t data) {
     ioapic_write(ioapic, IOAPIC_REG_REDTBL_BASE + index * 2 + 1, (uint32_t) (data >> 32));
 }
 
+void ioapic_add_iso(uint8_t bus, uint8_t source, uint32_t gsi, uint16_t flags) {
+    assert(io_apic_iso_count < sizeof(io_apic_isos) / sizeof(io_apic_isos[0]) && "Maximum ISO entries reached");
+    io_apic_isos[io_apic_iso_count].bus = bus;
+    io_apic_isos[io_apic_iso_count].source = source;
+    io_apic_isos[io_apic_iso_count].gsi = gsi;
+    io_apic_isos[io_apic_iso_count].flags = flags;
+    io_apic_iso_count++;
+}
+
 void ioapic_map_irq(io_apic_t* ioapic, uint8_t irq, uint8_t vector, uint8_t destination) {
     uint64_t redirect = vector;
     redirect |= IOAPIC_DELIVERY_FIXED;
     redirect |= ((uint64_t) destination << IOAPIC_DEST_SHIFT);
     printf("Mapping IRQ %u to vector 0x%02X on destination 0x%02X\n", irq, vector, destination);
     ioapic_set_entry(ioapic, irq, redirect);
+}
+
+void ioapic_mask_irq(uint8_t irq) {
+    uint8_t actual_irq = irq;
+    for(size_t i = 0; i < io_apic_iso_count; i++) {
+        if(io_apic_isos[i].source == irq) {
+            actual_irq = io_apic_isos[i].gsi;
+            break;
+        }
+    }
+
+    io_apic_t* target_ioapic = NULL;
+    for(size_t i = 0; i < ioapic_count; i++) {
+        io_apic_t* ioapic = &ioapics[i];
+        if(actual_irq < ioapic->max_redirection_entry) {
+            target_ioapic = ioapic;
+            break;
+        } else {
+            actual_irq -= ioapic->max_redirection_entry;
+        }
+    }
+
+    if(target_ioapic) {
+        uint32_t low = ioapic_read(target_ioapic, IOAPIC_REG_REDTBL_BASE + (actual_irq * 2));
+        uint32_t high = ioapic_read(target_ioapic, IOAPIC_REG_REDTBL_BASE + (actual_irq * 2) + 1);
+        uint64_t entry = ((uint64_t) high << 32) | low;
+        entry |= IOAPIC_MASKED;
+        ioapic_set_entry(target_ioapic, actual_irq, entry);
+    } else {
+        printf("ioapic_mask_irq: could not find target ioapic for IRQ %u\n", irq);
+    }
+}
+
+void ioapic_unmask_irq(uint8_t irq) {
+    uint8_t actual_irq = irq;
+    for(size_t i = 0; i < io_apic_iso_count; i++) {
+        if(io_apic_isos[i].source == irq) {
+            actual_irq = io_apic_isos[i].gsi;
+            break;
+        }
+    }
+
+    io_apic_t* target_ioapic = NULL;
+    for(size_t i = 0; i < ioapic_count; i++) {
+        io_apic_t* ioapic = &ioapics[i];
+        if(actual_irq < ioapic->max_redirection_entry) {
+            target_ioapic = ioapic;
+            break;
+        } else {
+            actual_irq -= ioapic->max_redirection_entry;
+        }
+    }
+
+    if(target_ioapic) {
+        uint32_t low = ioapic_read(target_ioapic, IOAPIC_REG_REDTBL_BASE + (actual_irq * 2));
+        uint32_t high = ioapic_read(target_ioapic, IOAPIC_REG_REDTBL_BASE + (actual_irq * 2) + 1);
+        uint64_t entry = ((uint64_t) high << 32) | low;
+        entry &= ~IOAPIC_MASKED;
+        ioapic_set_entry(target_ioapic, actual_irq, entry);
+    } else {
+        printf("ioapic_unmask_irq: could not find target ioapic for IRQ %u\n", irq);
+    }
 }
 
 
@@ -85,44 +157,74 @@ void ioapic_init(uint32_t id, phys_addr_t phys_addr) {
     for(uint32_t i = 0; i < ioapic->max_redirection_entry; i++) {
         ioapic_set_entry(ioapic, i, IOAPIC_MASKED);
     }
-
-    ioapic_map_irq(ioapic, 1, 0x21, lapic_get_id());
 }
 
-void dump_madt_entry(struct acpi_entry_hdr* hdr) {
+void dump_madt_entry(acpi_madt_entry_hdr_t* hdr) {
     if(hdr->type == ACPI_MADT_ENTRY_TYPE_LAPIC) {
-        struct acpi_madt_lapic* mhdr = (struct acpi_madt_lapic*) (hdr);
-        printf("MADT/lapic 0x%llx (%d) %d | %d %d 0x%llx\n", hdr, hdr->type, hdr->length, mhdr->uid, mhdr->id, mhdr->flags);
+        acpi_madt_lapic_t* mhdr = (acpi_madt_lapic_t*) (hdr);
+        printf("MADT/lapic 0x%llx (%d) %d | %d %d 0x%llx\n", hdr, hdr->type, hdr->length, mhdr->acpi_id, mhdr->apic_id, mhdr->flags);
     } else if(hdr->type == ACPI_MADT_ENTRY_TYPE_IOAPIC) {
-        struct acpi_madt_ioapic* mhdr = (struct acpi_madt_ioapic*) (hdr);
+        acpi_madt_ioapic_t* mhdr = (acpi_madt_ioapic_t*) (hdr);
         printf("MADT/ioapic 0x%llx (%d) %d | %d 0x%llx 0x%llx\n", hdr, hdr->type, hdr->length, mhdr->id, mhdr->address, mhdr->gsi_base);
     } else if(hdr->type == ACPI_MADT_ENTRY_TYPE_INTERRUPT_SOURCE_OVERRIDE) {
-        struct acpi_madt_interrupt_source_override* mhdr = (struct acpi_madt_interrupt_source_override*) (hdr);
+        acpi_madt_interrupt_source_override_t* mhdr = (acpi_madt_interrupt_source_override_t*) (hdr);
         printf("MADT/iso 0x%llx (%d) %d | %d %d 0x%llx 0x%llx\n", hdr, hdr->type, hdr->length, mhdr->bus, mhdr->source, mhdr->gsi, mhdr->flags);
     } else if(hdr->type == ACPI_MADT_ENTRY_TYPE_LAPIC_NMI) {
-        struct acpi_madt_lapic_nmi* mhdr = (struct acpi_madt_lapic_nmi*) (hdr);
-        printf("MADT/lapicnmi 0x%llx (%d) %d | %d %d 0x%llx\n", hdr, hdr->type, hdr->length, mhdr->uid, mhdr->flags, mhdr->lint);
+        acpi_madt_lapic_nmi_t* mhdr = (acpi_madt_lapic_nmi_t*) (hdr);
+        printf("MADT/lapicnmi 0x%llx (%d) %d | %d %d 0x%llx\n", hdr, hdr->type, hdr->length, mhdr->acpi_id, mhdr->flags, mhdr->lint);
     } else {
         printf("MADT/unknown 0x%llx (%d) %d\n", hdr, hdr->type, hdr->length);
     }
 }
 
-uacpi_iteration_decision parse_madt(uacpi_handle handle, struct acpi_entry_hdr* hdr) {
-    (void) handle;
+void madt_first_pass() {
+    acpi_madt_t* madt = (acpi_madt_t*)acpi_find_table(ACPI_MADT_SIGNATURE);
+    printf("MADT first pass\n");
+    for(size_t offset = sizeof(acpi_madt_t); offset < madt->header.length;) {
+        acpi_madt_entry_hdr_t* entry = (acpi_madt_entry_hdr_t*) ((uintptr_t) madt + offset);
+        dump_madt_entry(entry);
 
-    dump_madt_entry(hdr);
-    if(hdr->type == ACPI_MADT_ENTRY_TYPE_IOAPIC) {
-        struct acpi_madt_ioapic* mhdr = (struct acpi_madt_ioapic*) (hdr);
-        ioapic_init(mhdr->id, mhdr->address);
+        if(entry->type == ACPI_MADT_ENTRY_TYPE_IOAPIC) {
+            acpi_madt_ioapic_t* ioapic_entry = (acpi_madt_ioapic_t*) entry;
+            ioapic_init(ioapic_entry->id, ioapic_entry->address);
+        }
+
+        offset += entry->length;
     }
+}
 
-    return UACPI_ITERATION_DECISION_CONTINUE;
+void madt_second_pass() {
+    acpi_madt_t* madt = (acpi_madt_t*)acpi_find_table(ACPI_MADT_SIGNATURE);
+    printf("MADT second pass\n");
+    for(size_t offset = sizeof(acpi_madt_t); offset < madt->header.length;) {
+        acpi_madt_entry_hdr_t* entry = (acpi_madt_entry_hdr_t*) ((uintptr_t) madt + offset);
+        // dump_madt_entry(entry);
+        if(entry->type == ACPI_MADT_ENTRY_TYPE_INTERRUPT_SOURCE_OVERRIDE) {
+            acpi_madt_interrupt_source_override_t* iso_entry = (acpi_madt_interrupt_source_override_t*) entry;
+            if(iso_entry->source != iso_entry->gsi) {
+                printf("ISO: IRQ %d -> GSI %d\n", iso_entry->source, iso_entry->gsi);
+            }
+
+        }
+
+        offset += entry->length;
+    }
 }
 
 void ioapic_setup() {
-    uacpi_table tbl;
-    uacpi_table_find_by_signature(ACPI_MADT_SIGNATURE, &tbl);
-    uacpi_for_each_subtable(tbl.hdr, sizeof(struct acpi_madt), parse_madt, NULL);
+    acpi_madt_t* madt = (acpi_madt_t*)acpi_find_table(ACPI_MADT_SIGNATURE);
+    madt_first_pass();
+    madt_second_pass();
+
+    if(ioapic_count > 0) {
+        // map timer 
+        ioapic_map_irq(&ioapics[0], 0, 0x20, lapic_get_id());
+        ioapic_unmask_irq(0);
+        
+        // map ps2 keyboard
+        ioapic_map_irq(&ioapics[0], 1, 0x21, lapic_get_id());
+        ioapic_unmask_irq(1);
+    }
 
     printf("IOAPIC INIT OK!\n");
 }

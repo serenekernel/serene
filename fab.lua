@@ -80,11 +80,11 @@ local limine_protocol = fab.git(
     "trunk"
 )
 
-local uacpi = fab.git(
-    "uacpi",
-    "https://github.com/uACPI/uACPI.git",
-    "3.2.0"
-)
+-- local uacpi = fab.git(
+--     "uacpi",
+--     "https://github.com/uACPI/uACPI.git",
+--     "3.2.0"
+-- )
 
 local flanterm = fab.git(
     "flanterm",
@@ -92,12 +92,12 @@ local flanterm = fab.git(
     "trunk"
 )
 
-table.insert(include_dirs, c.include_dir(path(fab.build_dir(), uacpi.path, "include")))
+-- table.insert(include_dirs, c.include_dir(path(fab.build_dir(), uacpi.path, "include")))
 table.insert(include_dirs, c.include_dir(path(fab.build_dir(), limine_protocol.path, "include")))
 table.insert(include_dirs, c.include_dir(path(fab.build_dir(), flanterm.path, "src")))
 
 local external_sources = {}
-table.extend(external_sources, sources(fab.glob("source/*.c", { relative_to = uacpi.path })))
+-- table.extend(external_sources, sources(fab.glob("source/*.c", { relative_to = uacpi.path })))
 table.extend(external_sources, sources(fab.glob("src/*.c", { relative_to = flanterm.path })))
 
 if opt_arch == "x86_64" then
