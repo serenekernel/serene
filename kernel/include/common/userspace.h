@@ -5,6 +5,10 @@ typedef enum : uint64_t {
     SYS_EXIT = 1,
 
     SYS_CAP_PORT_GRANT = 32,
+    
+    // @todo: this absolutely 100% should not be a system call if we can help it
+    SYS_CAP_IPC_DISCOVERY = 33,
+
 
     SYS_WAIT_FOR = 48,
 

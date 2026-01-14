@@ -7,12 +7,15 @@ __handle_syscall:
     mov qword [r15 + 8], rsp
     mov rsp, qword [r15 + 16]
 
+    ; @note:
     ; save registers - 14 registers = 112 bytes
     ; kernel stack starts 16-byte aligned
     ; after 14 pushes (112 bytes = 7*16), stack is still 16-byte aligned
     ; but call will push return address (8 bytes), making it misaligned
     ; so we need to adjust by 8 bytes before the pushes
-    sub rsp, 8      ; align stack for call instruction
+    ; 
+    ; sub rsp, 8      ; @note: align stack for call instruction
+    push rbx
     push rcx
     push rdx
     push rbp
@@ -38,7 +41,7 @@ __handle_syscall:
     call dispatch_syscall
     cli
 
-    mov rbx, rdx ; we can't use rdx :(
+    xor rdx, rdx
 
     xor r12, r12
     mov r12, ds
@@ -57,8 +60,9 @@ __handle_syscall:
     pop rbp
     pop rdx
     pop rcx
+    pop rbx
 
-    add rsp, 8      ; remove alignment adjustment
+    ; add rsp, 8      ; remove alignment adjustment
 
 
     mov rsp, qword [r15 + 8]
