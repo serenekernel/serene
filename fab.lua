@@ -22,7 +22,7 @@ local ld = linker.get_linker("ld.lld")
 assert(ld ~= nil, "No ld.lld found")
 
 local include_dirs = {
-    c.include_dir(path("kernel/include/arch_dep/", opt_arch)),
+    c.include_dir(path("kernel/include/arch/", opt_arch)),
     c.include_dir("kernel/include"),
     c.include_dir("kernel/include/lib")
 }
