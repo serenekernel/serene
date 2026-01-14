@@ -1,16 +1,17 @@
 #include "memory/vmm.h"
+
 #include <arch/cpu_local.h>
 #include <arch/gdt.h>
 #include <arch/msr.h>
 #include <assert.h>
 #include <common/cpu_local.h>
+#include <common/endpoint.h>
+#include <common/handle.h>
 #include <common/process.h>
 #include <common/sched.h>
 #include <common/userspace.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <common/handle.h>
-#include <common/endpoint.h>
 
 void __handle_syscall();
 
@@ -38,13 +39,15 @@ syscall_entry_t syscall_table[256];
 
 const char* convert_syscall_number(syscall_nr_t nr) {
     switch(nr) {
-        case SYS_EXIT:           return "SYS_EXIT";
-        case SYS_CAP_PORT_GRANT: return "SYS_CAP_PORT_GRANT";
-        case SYS_ENDPOINT_CREATE:  return "SYS_ENDPOINT_CREATE";
-        case SYS_ENDPOINT_DESTROY: return "SYS_ENDPOINT_DESTROY";
-        case SYS_ENDPOINT_SEND:    return "SYS_ENDPOINT_SEND";
-        case SYS_ENDPOINT_RECEIVE: return "SYS_ENDPOINT_RECEIVE";
-        default:                 return "UNKNOWN_SYSCALL";
+        case SYS_EXIT:                  return "SYS_EXIT";
+        case SYS_CAP_PORT_GRANT:        return "SYS_CAP_PORT_GRANT";
+        case SYS_WAIT_FOR:              return "SYS_WAIT_FOR";
+        case SYS_ENDPOINT_CREATE:       return "SYS_ENDPOINT_CREATE";
+        case SYS_ENDPOINT_DESTROY:      return "SYS_ENDPOINT_DESTROY";
+        case SYS_ENDPOINT_SEND:         return "SYS_ENDPOINT_SEND";
+        case SYS_ENDPOINT_RECEIVE:      return "SYS_ENDPOINT_RECEIVE";
+        case SYS_ENDPOINT_FREE_MESSAGE: return "SYS_ENDPOINT_FREE_MESSAGE";
+        default:                        return "UNKNOWN_SYSCALL";
     }
 }
 
@@ -61,13 +64,49 @@ const char* convert_syscall_error(syscall_err_t err) {
     }
 }
 
-#define SYSCALL_ASSERT_PARAM(cond)               \
-    do {                                         \
-        if(!(cond)) {                            \
-            return SYSCALL_ERR_INVALID_ARGUMENT; \
-        }                                        \
+bool check_handle(handle_t handle, thread_t* thread, handle_type_t expected_type) {
+    // -1 and 0 are always invalid
+    if(handle == 0 || handle == -1) {
+        return false;
+    }
+    handle_meta_t* handle_meta = handle_get(handle);
+    if(!handle_meta || !handle_meta->valid) {
+        return false;
+    }
+    if(handle_meta->owner_thread != thread->thread_common.tid) {
+        return false;
+    }
+    if(expected_type != HANDLE_TYPE_INVALID && handle_meta->type != expected_type) {
+        return false;
+    }
+    return true;
+}
+
+#define SYSCALL_ASSERT_PARAM(cond)                           \
+    do {                                                     \
+        if(!(cond)) {                                        \
+            printf("syscall assertion failed: %s\n", #cond); \
+            return SYSCALL_ERR_INVALID_ARGUMENT;             \
+        }                                                    \
     } while(0)
 
+#define SYSCALL_ASSERT_HANDLE(handle)                                      \
+    do {                                                                   \
+        thread_t* __current_thread = CPU_LOCAL_READ(current_thread);       \
+        if(!check_handle(handle, __current_thread, HANDLE_TYPE_INVALID)) { \
+            printf("syscall handle assertion failed: %s\n", #handle);      \
+            return SYSCALL_ERR_INVALID_HANDLE;                             \
+        }                                                                  \
+    } while(0)
+
+#define SYSCALL_ASSERT_HANDLE_TYPE(handle, type)                      \
+    do {                                                              \
+        thread_t* __current_thread = CPU_LOCAL_READ(current_thread);  \
+        if(!check_handle(handle, __current_thread, type)) {           \
+            printf("syscall handle assertion failed: %s\n", #handle); \
+            return SYSCALL_ERR_INVALID_HANDLE;                        \
+        }                                                             \
+    } while(0)
 syscall_err_t syscall_sys_exit(uint64_t exit_code) {
     (void) exit_code;
     thread_t* thread = CPU_LOCAL_READ(current_thread);
@@ -95,42 +134,36 @@ syscall_err_t syscall_sys_cap_port_grant(uint64_t start_port, uint64_t num_ports
     return 0;
 }
 
-syscall_err_t syscall_sys_endpoint_create(uint64_t* out_handle) {
+syscall_err_t syscall_sys_endpoint_create() {
     thread_t* thread = CPU_LOCAL_READ(current_thread);
     endpoint_t* endpoint = endpoint_create(thread, 16);
 
-    handle_t handle = handle_create(HANDLE_TYPE_ENDPOINT, HANDLE_CAPS_ENDPOINT_SEND | HANDLE_CAPS_ENDPOINT_RECEIVE | HANDLE_CAPS_ENDPOINT_CLOSE, (void*) endpoint);
-    *out_handle = *(uint64_t*) &handle;
-
-    return 0;
+    handle_t handle = handle_create(HANDLE_TYPE_ENDPOINT, thread->thread_common.tid, HANDLE_CAPS_ENDPOINT_SEND | HANDLE_CAPS_ENDPOINT_RECEIVE | HANDLE_CAPS_ENDPOINT_CLOSE, (void*) endpoint);
+    printf("Created endpoint handle 0x%llx for process %d\n", handle, thread->thread_common.process->pid);
+    return (syscall_err_t) handle;
 }
 
 syscall_err_t syscall_sys_endpoint_destroy(uint64_t handle_value) {
     handle_t handle = *(handle_t*) &handle_value;
-    SYSCALL_ASSERT_PARAM(handle.type == HANDLE_TYPE_ENDPOINT);
-    endpoint_t* endpoint = (endpoint_t*) handle_get(handle);
-    SYSCALL_ASSERT_PARAM(endpoint != NULL);
-
-    endpoint_destroy(endpoint);
-    handle_delete(handle);
+    handle_meta_t* handle_meta = handle_get(handle);
+    SYSCALL_ASSERT_HANDLE_TYPE(handle, HANDLE_TYPE_ENDPOINT);
     return 0;
 }
 
 syscall_err_t syscall_sys_endpoint_send(uint64_t handle_value, uint64_t payload, uint64_t payload_length) {
     handle_t handle = *(handle_t*) &handle_value;
-    SYSCALL_ASSERT_PARAM(handle.type == HANDLE_TYPE_ENDPOINT);
-    endpoint_t* endpoint = (endpoint_t*) handle_get(handle);
+    handle_meta_t* handle_meta = handle_get(handle);
+    SYSCALL_ASSERT_HANDLE_TYPE(handle, HANDLE_TYPE_ENDPOINT);
+    endpoint_t* endpoint = (endpoint_t*) handle_meta->data;
     SYSCALL_ASSERT_PARAM(endpoint != NULL);
-    SYSCALL_ASSERT_PARAM(handle.capabilities & HANDLE_CAPS_ENDPOINT_SEND);
+    SYSCALL_ASSERT_PARAM(handle_meta->capabilities & HANDLE_CAPS_ENDPOINT_SEND);
     SYSCALL_ASSERT_PARAM(payload_length < PAGE_SIZE_DEFAULT * 4);
 
-    
-
-    message_t* message = (message_t*)vmm_alloc_object(&kernel_allocator, sizeof(message_t*) + payload_length);
+    message_t* message = (message_t*) vmm_alloc_object(&kernel_allocator, sizeof(message_t) + payload_length);
     message->length = (uint32_t) payload_length;
     message->type = 0;
     message->flags = 0;
-    message->reply_handle = (handle_t) { .type = HANDLE_TYPE_INVALID, .capabilities = 0, .id = 0 };
+    message->reply_handle = -1;
     memcpy(message->payload, (void*) payload, payload_length);
 
     bool result = endpoint_send(endpoint, message);
@@ -141,23 +174,45 @@ syscall_err_t syscall_sys_endpoint_send(uint64_t handle_value, uint64_t payload,
     return 0;
 }
 
-syscall_err_t syscall_sys_endpoint_receive(uint64_t handle_value, uint64_t* out_payload, uint64_t* out_payload_length) {
+// @note: holy shit I can't even make a joke about at how unsafe this is
+syscall_err_t syscall_sys_endpoint_free(uint64_t message_ptr) {
+    message_t* message = (message_t*) message_ptr;
+    vmm_free(&kernel_allocator, (virt_addr_t) message);
+    return 0;
+}
+
+syscall_err_t syscall_sys_endpoint_receive(uint64_t handle_value) {
     handle_t handle = *(handle_t*) &handle_value;
-    SYSCALL_ASSERT_PARAM(handle.type == HANDLE_TYPE_ENDPOINT);
-    endpoint_t* endpoint = (endpoint_t*) handle_get(handle);
+    handle_meta_t* handle_meta = handle_get(handle);
+    SYSCALL_ASSERT_HANDLE_TYPE(handle, HANDLE_TYPE_ENDPOINT);
+    endpoint_t* endpoint = (endpoint_t*) handle_meta->data;
     SYSCALL_ASSERT_PARAM(endpoint != NULL);
-    SYSCALL_ASSERT_PARAM(handle.capabilities & HANDLE_CAPS_ENDPOINT_RECEIVE);
+    SYSCALL_ASSERT_PARAM(handle_meta->capabilities & HANDLE_CAPS_ENDPOINT_RECEIVE);
 
     message_t* message = endpoint_receive(endpoint);
     if(!message) {
         return SYSCALL_ERR_WOULD_BLOCK;
     }
 
-    out_payload = (uint64_t*) vmm_alloc_object(&kernel_allocator, sizeof(message_t) + message->length);
-    memcpy((void*) out_payload, message, sizeof(message_t) + message->length);
-    *out_payload_length = sizeof(message_t) + message->length;
-
+    // Allocate new memory and copy the message
+    size_t total_size = sizeof(message_t) + message->length;
+    message_t* user_message = (message_t*) vmm_alloc_object(&kernel_allocator, total_size);
+    memcpy(user_message, message, total_size);
     vmm_free(&kernel_allocator, (virt_addr_t) message);
+
+    // Return the pointer directly - user can read length from message_t->length
+    return (syscall_err_t) (uint64_t) user_message;
+}
+
+syscall_err_t syscall_sys_wait_for(uint64_t handle_value) {
+    handle_t handle = *(handle_t*) &handle_value;
+    handle_meta_t* handle_meta = handle_get(handle);
+    thread_t* current_thread = CPU_LOCAL_READ(current_thread);
+    SYSCALL_ASSERT_HANDLE(handle);
+
+    SYSCALL_ASSERT_PARAM(handle_meta->owner_thread == current_thread->thread_common.tid);
+    current_thread->thread_common.status_data.blocked.wait_handle = handle;
+    sched_yield_status(THREAD_STATUS_BLOCKED);
     return 0;
 }
 
@@ -176,7 +231,7 @@ syscall_err_t dispatch_syscall(syscall_nr_t syscall_nr, uint64_t arg1, uint64_t 
 
     if(syscall_nr >= 256) {
         printf(
-            "[systrace] %d:%d - %s(0x%llx, 0x%llx, 0x%llx, 0x%llx, 0x%llx) = %s\n",
+            "[systrace] %d:%d - %s(0x%llx, 0x%llx, 0x%llx, 0x%llx, 0x%llx) = %s (%d)\n",
             thread->thread_common.process->pid,
             thread->thread_common.tid,
             convert_syscall_number(syscall_nr),
@@ -185,7 +240,8 @@ syscall_err_t dispatch_syscall(syscall_nr_t syscall_nr, uint64_t arg1, uint64_t 
             arg3,
             arg4,
             arg5,
-            convert_syscall_error(SYSCALL_ERR_INVALID_SYSCALL)
+            convert_syscall_error(SYSCALL_ERR_INVALID_SYSCALL),
+            SYSCALL_ERR_INVALID_SYSCALL
         );
         return SYSCALL_ERR_INVALID_SYSCALL;
     }
@@ -197,30 +253,26 @@ syscall_err_t dispatch_syscall(syscall_nr_t syscall_nr, uint64_t arg1, uint64_t 
         case 0: {
             printf("[systrace] %d:%d - (0x%llx) %s()\n", thread->thread_common.process->pid, thread->thread_common.tid, syscall_nr, convert_syscall_number(syscall_nr));
             syscall_err_t x = entry.handlers.handler0();
-            printf("[systrace, res] %d:%d - (0x%llx) %s() = %s\n", thread->thread_common.process->pid, thread->thread_common.tid, syscall_nr, convert_syscall_number(syscall_nr), convert_syscall_error(x));
+            printf("[systrace, res] %d:%d - (0x%llx) %s() = %s (%d)\n", thread->thread_common.process->pid, thread->thread_common.tid, syscall_nr, convert_syscall_number(syscall_nr), convert_syscall_error(x), x);
             return x;
         }
         case 1: {
-            printf("[systrace] %d:%d - (0x%llx) %s(0x%llx)\n", thread->thread_common.process->pid, thread->thread_common.tid, syscall_nr, convert_syscall_number(syscall_nr));
+            printf("[systrace] %d:%d - (0x%llx) %s(0x%llx)\n", thread->thread_common.process->pid, thread->thread_common.tid, syscall_nr, convert_syscall_number(syscall_nr), arg1);
             syscall_err_t x = entry.handlers.handler1(arg1);
-            printf("[systrace, res] %d:%d - (0x%llx) %s(0x%llx) = %s\n", thread->thread_common.process->pid, thread->thread_common.tid, syscall_nr, convert_syscall_number(syscall_nr), arg1, convert_syscall_error(x));
+            printf("[systrace, res] %d:%d - (0x%llx) %s(0x%llx) = %s (%d)\n", thread->thread_common.process->pid, thread->thread_common.tid, syscall_nr, convert_syscall_number(syscall_nr), arg1, convert_syscall_error(x), x);
             return x;
         }
         case 2: {
             printf("[systrace] %d:%d - (0x%llx) %s(0x%llx, 0x%llx)\n", thread->thread_common.process->pid, thread->thread_common.tid, syscall_nr, convert_syscall_number(syscall_nr), arg1, arg2);
             syscall_err_t x = entry.handlers.handler2(arg1, arg2);
-            printf("[systrace, res] %d:%d - (0x%llx) %s(0x%llx, 0x%llx) = %s\n", thread->thread_common.process->pid, thread->thread_common.tid, syscall_nr, convert_syscall_number(syscall_nr), arg1, arg2, convert_syscall_error(x));
+            printf("[systrace, res] %d:%d - (0x%llx) %s(0x%llx, 0x%llx) = %s (%d)\n", thread->thread_common.process->pid, thread->thread_common.tid, syscall_nr, convert_syscall_number(syscall_nr), arg1, arg2, convert_syscall_error(x), x);
             return x;
         }
         case 3: {
             printf("[systrace] %d:%d - (0x%llx) %s(0x%llx, 0x%llx, 0x%llx)\n", thread->thread_common.process->pid, thread->thread_common.tid, syscall_nr, convert_syscall_number(syscall_nr), arg1, arg2, arg3);
             syscall_err_t x = entry.handlers.handler3(arg1, arg2, arg3);
-            printf("[systrace, res] %d:%d - (0x%llx) %s(0x%llx, 0x%llx, 0x%llx) = %s\n", thread->thread_common.process->pid, thread->thread_common.tid, syscall_nr, convert_syscall_number(syscall_nr), arg1, arg2, arg3, convert_syscall_error(x));
-            return x;
-        }
-        case 4: {
             printf(
-                "[systrace, res] %d:%d - (0x%llx) %s(0x%llx, 0x%llx, 0x%llx, 0x%llx)\n",
+                "[systrace, res] %d:%d - (0x%llx) %s(0x%llx, 0x%llx, 0x%llx) = %s (%d)\n",
                 thread->thread_common.process->pid,
                 thread->thread_common.tid,
                 syscall_nr,
@@ -228,11 +280,16 @@ syscall_err_t dispatch_syscall(syscall_nr_t syscall_nr, uint64_t arg1, uint64_t 
                 arg1,
                 arg2,
                 arg3,
-                arg4
+                convert_syscall_error(x),
+                x
             );
+            return x;
+        }
+        case 4: {
+            printf("[systrace, res] %d:%d - (0x%llx) %s(0x%llx, 0x%llx, 0x%llx, 0x%llx)\n", thread->thread_common.process->pid, thread->thread_common.tid, syscall_nr, convert_syscall_number(syscall_nr), arg1, arg2, arg3, arg4);
             syscall_err_t x = entry.handlers.handler4(arg1, arg2, arg3, arg4);
             printf(
-                "[systrace, res] %d:%d - (0x%llx) %s(0x%llx, 0x%llx, 0x%llx, 0x%llx) = %s\n",
+                "[systrace, res] %d:%d - (0x%llx) %s(0x%llx, 0x%llx, 0x%llx, 0x%llx) = %s (%d)\n",
                 thread->thread_common.process->pid,
                 thread->thread_common.tid,
                 syscall_nr,
@@ -241,26 +298,16 @@ syscall_err_t dispatch_syscall(syscall_nr_t syscall_nr, uint64_t arg1, uint64_t 
                 arg2,
                 arg3,
                 arg4,
-                convert_syscall_error(x)
+                convert_syscall_error(x),
+                x
             );
             return x;
         }
         case 5: {
-            printf(
-                "[systrace] %d:%d - (0x%llx) %s(0x%llx, 0x%llx, 0x%llx, 0x%llx, 0x%llx)\n",
-                thread->thread_common.process->pid,
-                thread->thread_common.tid,
-                syscall_nr,
-                convert_syscall_number(syscall_nr),
-                arg1,
-                arg2,
-                arg3,
-                arg4,
-                arg5
-            );
+            printf("[systrace] %d:%d - (0x%llx) %s(0x%llx, 0x%llx, 0x%llx, 0x%llx, 0x%llx)\n", thread->thread_common.process->pid, thread->thread_common.tid, syscall_nr, convert_syscall_number(syscall_nr), arg1, arg2, arg3, arg4, arg5);
             syscall_err_t x = entry.handlers.handler5(arg1, arg2, arg3, arg4, arg5);
             printf(
-                "[systrace, res] %d:%d - (0x%llx) %s(0x%llx, 0x%llx, 0x%llx, 0x%llx, 0x%llx) = %s\n",
+                "[systrace, res] %d:%d - (0x%llx) %s(0x%llx, 0x%llx, 0x%llx, 0x%llx, 0x%llx) = %s (%d)\n",
                 thread->thread_common.process->pid,
                 thread->thread_common.tid,
                 syscall_nr,
@@ -270,7 +317,8 @@ syscall_err_t dispatch_syscall(syscall_nr_t syscall_nr, uint64_t arg1, uint64_t 
                 arg3,
                 arg4,
                 arg5,
-                convert_syscall_error(x)
+                convert_syscall_error(x),
+                x
             );
             return x;
         }
@@ -278,6 +326,9 @@ syscall_err_t dispatch_syscall(syscall_nr_t syscall_nr, uint64_t arg1, uint64_t 
     }
 }
 
+#define SYSCALL_DISPATCHER(nr, __handler, __num_params)           \
+    syscall_table[nr].num_params = __num_params;                  \
+    syscall_table[nr].handlers.handler##__num_params = __handler;
 
 void userspace_init() {
     uint64_t efer = __rdmsr(IA32_EFER);
@@ -295,9 +346,15 @@ void userspace_init() {
         syscall_table[i].handlers.handler5 = syscall_sys_invalid;
     }
 
-    syscall_table[SYS_EXIT].num_params = 1;
-    syscall_table[SYS_EXIT].handlers.handler1 = syscall_sys_exit;
+    SYSCALL_DISPATCHER(SYS_EXIT, syscall_sys_exit, 1);
 
-    syscall_table[SYS_CAP_PORT_GRANT].num_params = 2;
-    syscall_table[SYS_CAP_PORT_GRANT].handlers.handler2 = syscall_sys_cap_port_grant;
+    SYSCALL_DISPATCHER(SYS_CAP_PORT_GRANT, syscall_sys_cap_port_grant, 2);
+
+    SYSCALL_DISPATCHER(SYS_WAIT_FOR, syscall_sys_wait_for, 1);
+
+    SYSCALL_DISPATCHER(SYS_ENDPOINT_CREATE, syscall_sys_endpoint_create, 0);
+    SYSCALL_DISPATCHER(SYS_ENDPOINT_DESTROY, syscall_sys_endpoint_destroy, 1);
+    SYSCALL_DISPATCHER(SYS_ENDPOINT_SEND, syscall_sys_endpoint_send, 3);
+    SYSCALL_DISPATCHER(SYS_ENDPOINT_RECEIVE, syscall_sys_endpoint_receive, 1);
+    SYSCALL_DISPATCHER(SYS_ENDPOINT_FREE_MESSAGE, syscall_sys_endpoint_free, 1);
 }

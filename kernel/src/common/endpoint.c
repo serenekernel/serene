@@ -1,5 +1,21 @@
 #include "memory/vmm.h"
 #include <common/endpoint.h>
+#include <common/handle.h>
+
+bool __endpoint_has_data(handle_t handle, void* data) {
+    endpoint_t* endpoint = (endpoint_t*) data;
+    return endpoint->recv_head != endpoint->recv_tail;
+}
+
+bool __endpoint_free(handle_t handle, void* data) {
+    endpoint_t* endpoint = (endpoint_t*) data;
+    endpoint_destroy(endpoint);
+    return true;
+}
+
+handle_has_data_t endpoint_has_data = __endpoint_has_data;
+handle_free_t endpoint_free = __endpoint_free;
+
 
 endpoint_t* endpoint_create(thread_t* owner, uint16_t queue_length) {
     endpoint_t* endpoint = (endpoint_t*) vmm_alloc_object(&kernel_allocator, sizeof(endpoint_t));
@@ -12,6 +28,7 @@ endpoint_t* endpoint_create(thread_t* owner, uint16_t queue_length) {
 }
 
 void endpoint_destroy(endpoint_t* endpoint) {
+    // @note: this doesn't clean up messages still in the queue yet as those need to be dumped into usermode memory at some point
     vmm_free(&kernel_allocator, (virt_addr_t) endpoint->recv_queue);
     vmm_free(&kernel_allocator, (virt_addr_t) endpoint);
 }

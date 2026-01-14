@@ -1,4 +1,5 @@
 #include <ldr/elf.h>
+#include <common/handle.h>
 #include "arch/fpu.h"
 #include <string.h>
 #include <arch/gdt.h>
@@ -154,8 +155,8 @@ void arch_init_bsp() {
 
 
     sched_init_bsp();
+    handle_setup();
     userspace_init();
-
     // thread_t* test1 = sched_thread_kernel_init((virt_addr_t) thread_a);
     // thread_t* test2 = sched_thread_kernel_init((virt_addr_t) thread_b);
     // thread_t* test3 = sched_thread_kernel_init((virt_addr_t) thread_c);

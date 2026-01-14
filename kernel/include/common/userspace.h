@@ -6,10 +6,13 @@ typedef enum : uint64_t {
 
     SYS_CAP_PORT_GRANT = 32,
 
+    SYS_WAIT_FOR = 48,
+
     SYS_ENDPOINT_CREATE = 64,
     SYS_ENDPOINT_DESTROY = 65,
     SYS_ENDPOINT_SEND = 66,
     SYS_ENDPOINT_RECEIVE = 67,
+    SYS_ENDPOINT_FREE_MESSAGE = 68
 } syscall_nr_t;
 
 typedef enum : int64_t {

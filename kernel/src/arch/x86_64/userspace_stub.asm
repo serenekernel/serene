@@ -57,7 +57,9 @@ __handle_syscall:
     pop rbp
     pop rdx
     pop rcx
+
     add rsp, 8      ; remove alignment adjustment
+
 
     mov rsp, qword [r15 + 8]
     xor r15, r15

@@ -18,4 +18,10 @@ typedef struct {
     vm_allocator_t* address_space;
     thread_status_t status;
     bool happy_to_die;
+
+    union {
+        struct {
+            uint32_t wait_handle;
+        } blocked;
+    } status_data;
 } thread_common_t;
