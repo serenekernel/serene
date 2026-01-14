@@ -1,6 +1,10 @@
+#include "common/memory.h"
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
+#include <common/interrupts.h>
+#include <memory/vmm.h>
+
 size_t strlen(const char* s) {
     size_t len = 0;
     while(s[len] != '\0') {
@@ -93,4 +97,23 @@ int strncmp(const char* s1, const char* s2, size_t n) {
     }
 
     return 0;
+}
+
+void memcpy_um_um(vm_allocator_t* dest_alloc, vm_allocator_t* src_alloc, virt_addr_t dest, virt_addr_t src, size_t n) {
+    bool irq = interrupts_enabled();
+    if(irq) disable_interrupts();
+    phys_addr_t cr3 = vm_address_space_switch_raw(src_alloc->kernel_paging_structures_base);
+
+    virt_addr_t kernel_buffer = vmm_alloc_kernel_object(&kernel_allocator, n);
+    memcpy((void*) kernel_buffer, (void*) src, n);
+
+    vm_address_space_switch_raw(dest_alloc->kernel_paging_structures_base);
+    memcpy((void*) dest, (void*) kernel_buffer, n);
+
+    vmm_free(&kernel_allocator, kernel_buffer);
+
+    vm_address_space_switch_raw(cr3);
+
+    if(irq) enable_interrupts();
+    return;
 }

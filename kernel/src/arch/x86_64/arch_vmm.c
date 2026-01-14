@@ -322,6 +322,15 @@ void vm_address_space_switch(vm_allocator_t* allocator) {
     arch_memory_barrier();
 }
 
+phys_addr_t vm_address_space_switch_raw(phys_addr_t cr3) {
+    arch_memory_barrier();
+    phys_addr_t old_cr3 = __read_cr3();
+    arch_memory_barrier();
+    __write_cr3(cr3);
+    arch_memory_barrier();
+    return old_cr3;
+}
+
 void vm_paging_setup_user(vm_allocator_t* allocator) {
     allocator->kernel_paging_structures_base = __alloc_entry();
     uint64_t* pml4_kernel = (uint64_t*) TO_HHDM(kernel_allocator.kernel_paging_structures_base);
