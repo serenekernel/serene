@@ -141,6 +141,25 @@ void sched_preempt_handler(interrupt_frame_t* frame) {
 static uint32_t next_tid = 1;
 extern void __jump_to_idle_thread(virt_addr_t stack_ptr, virt_addr_t entry_point);
 
+thread_t* __sched_get_thread(uint32_t tid) {
+    thread_t* current = g_scheduler.thread_head;
+    while(current != nullptr) {
+        if(current->thread_common.tid == tid) {
+            return current;
+        }
+        current = (thread_t*) current->sched_next;
+    }
+    return nullptr;
+}
+
+
+thread_t* sched_get_thread(uint32_t tid) {
+    uint64_t __irqflags = spinlock_critical_lock(&g_sched_lock);
+    thread_t* res = __sched_get_thread(tid);
+    spinlock_critical_unlock(&g_sched_lock, __irqflags);
+    return res;
+}
+
 void sched_init_bsp() {
     g_sched_lock = 0;
     g_scheduler.idle_thread = sched_thread_kernel_init((virt_addr_t) idle_thread);
@@ -279,6 +298,7 @@ thread_t* find_next_thread() {
             if(current_thread->thread_common.block_reason == THREAD_BLOCK_REASON_WAIT_HANDLE) {
                 handle_t wait_handle = current_thread->thread_common.status_data.blocked.wait_handle;
                 if(handle_has_data(wait_handle)) {
+                    current_thread->thread_common.status = THREAD_STATUS_READY;
                     return current_thread;
                 }
             }
@@ -349,6 +369,27 @@ void sched_add_thread(thread_t* thread) {
     }
 
     spinlock_critical_unlock(&g_sched_lock, __spin_flag);
+}
+
+void sched_wake_thread_id(uint32_t thread) {
+    bool enabled = interrupts_enabled();
+    if(enabled) disable_interrupts();
+
+    spinlock_lock(&g_sched_lock);
+
+    thread_t* to_wake = __sched_get_thread(thread);
+    assert(to_wake != nullptr && "Tried to wake a nonexistant thread");
+    assert(to_wake->thread_common.status != THREAD_STATUS_TERMINATED && "Tried to wake a terminated thread");
+    if(to_wake->thread_common.status == THREAD_STATUS_RUNNING) {
+        spinlock_unlock(&g_sched_lock);
+        printf("Woke thread TID %u\n", to_wake->thread_common.tid);
+        if(enabled) enable_interrupts();
+        return;
+    }
+    to_wake->thread_common.status = THREAD_STATUS_READY;
+    printf("Woke thread TID %u\n", to_wake->thread_common.tid);
+    spinlock_unlock(&g_sched_lock);
+    if(enabled) enable_interrupts();
 }
 
 void sched_remove_thread(thread_t* thread) {
