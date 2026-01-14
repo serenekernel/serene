@@ -1,4 +1,4 @@
-local opt_arch = fab.option("arch", { "x86_64" }) or "x86_64"
+local opt_arch = fab.option("arch", { "x86_64", "aarch64" }) or "x86_64"
 local opt_build_type = fab.option("buildtype", { "debug", "release" }) or "debug"
 
 local kernel_sources = sources(fab.glob("kernel/src/**/*.c", "!kernel/src/arch/**"))
@@ -80,31 +80,22 @@ local limine_protocol = fab.git(
     "trunk"
 )
 
--- local uacpi = fab.git(
---     "uacpi",
---     "https://github.com/uACPI/uACPI.git",
---     "3.2.0"
--- )
-
 local flanterm = fab.git(
     "flanterm",
     "https://codeberg.org/Mintsuki/Flanterm.git",
     "trunk"
 )
 
--- table.insert(include_dirs, c.include_dir(path(fab.build_dir(), uacpi.path, "include")))
 table.insert(include_dirs, c.include_dir(path(fab.build_dir(), limine_protocol.path, "include")))
 table.insert(include_dirs, c.include_dir(path(fab.build_dir(), flanterm.path, "src")))
+table.insert(include_dirs, c.include_dir(path(fab.build_dir(), freestanding_c_headers.path, opt_arch .. "/include")))
 
-local external_sources = {}
--- table.extend(external_sources, sources(fab.glob("source/*.c", { relative_to = uacpi.path })))
-table.extend(external_sources, sources(fab.glob("src/*.c", { relative_to = flanterm.path })))
+local flanterm_sources = {}
+table.extend(flanterm_sources, sources(fab.glob("src/*.c", { relative_to = flanterm.path })))
+
 
 if opt_arch == "x86_64" then
-    -- --- Includes
-    table.insert(include_dirs, c.include_dir(path(fab.build_dir(), freestanding_c_headers.path, "x86_64/include")))
-
-    -- -- Flags
+    -- Flags
     table.extend(c_flags, {
         "--target=x86_64-none-elf",
         "-mno-red-zone",
@@ -117,36 +108,54 @@ if opt_arch == "x86_64" then
     if opt_build_type == "debug" then
         table.insert(c_flags, "-fno-sanitize=alignment")
     end
-
-    local nasm_flags = { "-f", "elf64", "-Werror" }
-    local kernel_flags = {}
-    table.extend(kernel_flags, c_flags)
-    table.extend(kernel_flags, {
-        "-Wall",
-        "-Wextra",
-        "-Wvla",
-        "-Werror"
+elseif opt_arch == "aarch64" then
+    -- Flags
+    table.extend(c_flags, {
+        "--target=aarch64-none-elf",
+        "-D__ARCH_AARCH64__"
     })
-    
-    local external_objects = generate(external_sources, {
-        c = function(sources) return clang:generate(sources, c_flags, include_dirs) end
-    })
-
-    local objects = generate(kernel_sources, {
-        asm = function(sources) return nasm:generate(sources, nasm_flags) end,
-        c = function(sources) return clang:generate(sources, c_flags, include_dirs) end
-    })
-
-    table.extend(objects, external_objects)
-
-    local kernel = ld:link("kernel.elf", objects, {
-        "-T" .. fab.path_rel("linker-scripts/x86_64.lds"),
-        "-znoexecstack"
-    })
-
-    return {
-        install = {
-            ["kernel.elf"] = kernel
-        }
-    }
 end
+
+local objects = {}
+local flanterm_objects = generate(flanterm_sources, {
+    c = function(sources) return clang:generate(sources, c_flags, include_dirs) end
+})
+
+table.extend(objects, flanterm_objects)
+
+local kernel_flags = {}
+table.extend(kernel_flags, c_flags)
+table.extend(kernel_flags, {
+    "-Wall",
+    "-Wextra",
+    "-Wvla",
+    "-Werror"
+})
+
+local generators = {
+    c = function(sources) return clang:generate(sources, kernel_flags, include_dirs) end
+}
+
+local linker_script
+
+if opt_arch == "x86_64" then
+    local nasm_flags = { "-f", "elf64", "-Werror" }
+
+    generators.asm = function(sources) return nasm:generate(sources, nasm_flags) end
+
+    linker_script = fab.def_source("linker-scripts/x86_64.lds")
+elseif opt_arch == "aarch64" then
+    linker_script = fab.def_source("linker-scripts/aarch64.lds")
+end
+
+table.extend(objects, generate(kernel_sources, generators))
+
+local kernel = ld:link("kernel.elf", objects, {
+    "-znoexecstack"
+}, linker_script)
+
+return {
+    install = {
+        ["kernel.elf"] = kernel
+    }
+}

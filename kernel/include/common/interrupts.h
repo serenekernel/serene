@@ -10,3 +10,6 @@ void unregister_interrupt_handler(int vector);
 void enable_interrupts();
 void disable_interrupts();
 bool interrupts_enabled();
+
+void setup_interrupts_bsp();
+void setup_interrupts_ap();

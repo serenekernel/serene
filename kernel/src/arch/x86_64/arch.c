@@ -71,7 +71,7 @@ void setup_arch() {
     setup_gdt();
     printf("GDT INIT OK!\n");
 
-    setup_idt_bsp();
+    setup_interrupts_bsp();
     printf("IDT INIT OK!\n");
     if(rsdp_request.response != NULL) {
         acpi_init();
@@ -199,7 +199,7 @@ void arch_init_ap(struct limine_mp_info* info) {
     init_cpu_local();
     setup_gdt();
     ipi_init_ap();
-    setup_idt_ap();
+    setup_interrupts_ap();
     lapic_init_ap();
     fpu_init_ap();
     spinlock_unlock(&arch_ap_init_lock);

@@ -1,5 +1,5 @@
 #include "memory/vmm.h"
-
+#include <string.h>
 #include <arch/cpu_local.h>
 #include <arch/gdt.h>
 #include <arch/msr.h>
@@ -67,7 +67,7 @@ const char* convert_syscall_error(syscall_err_t err) {
 
 bool check_handle(handle_t handle, thread_t* thread, handle_type_t expected_type) {
     // -1 and 0 are always invalid
-    if(handle == 0 || handle == -1) {
+    if(handle == 0 || handle == (uint64_t)-1) {
         return false;
     }
     handle_meta_t* handle_meta = handle_get(handle);
@@ -138,7 +138,6 @@ syscall_err_t syscall_sys_cap_port_grant(uint64_t start_port, uint64_t num_ports
 syscall_err_t syscall_sys_cap_ipc_discovery() {    
     // @note: this sucks
     thread_t* thread = CPU_LOCAL_READ(current_thread);
-    thread_t* init_thread = sched_get_thread(1);
     handle_t target = (handle_t)1; // hard coding :3
     handle_t our_handle = handle_dup(target);
     handle_set_owner(our_handle, thread->thread_common.tid);
@@ -160,8 +159,8 @@ syscall_err_t syscall_sys_endpoint_create() {
 
 syscall_err_t syscall_sys_endpoint_destroy(uint64_t handle_value) {
     handle_t handle = *(handle_t*) &handle_value;
-    handle_meta_t* handle_meta = handle_get(handle);
     SYSCALL_ASSERT_HANDLE_TYPE(handle, HANDLE_TYPE_ENDPOINT);
+    handle_delete(handle);
     return 0;
 }
 

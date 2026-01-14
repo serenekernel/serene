@@ -13,3 +13,6 @@ void arch_panic_int(interrupt_frame_t* frame);
 
 uint64_t arch_get_flags();
 void arch_set_flags(uint64_t flags);
+
+uint32_t arch_get_core_id();
+bool arch_is_bsp();

@@ -212,7 +212,6 @@ void madt_second_pass() {
 }
 
 void ioapic_setup() {
-    acpi_madt_t* madt = (acpi_madt_t*)acpi_find_table(ACPI_MADT_SIGNATURE);
     madt_first_pass();
     madt_second_pass();
 

@@ -3,11 +3,13 @@
 #include <common/handle.h>
 
 bool __endpoint_has_data(handle_t handle, void* data) {
+    (void)handle;
     endpoint_t* endpoint = (endpoint_t*) data;
     return endpoint->recv_head != endpoint->recv_tail;
 }
 
 bool __endpoint_free(handle_t handle, void* data) {
+    (void)handle;
     endpoint_t* endpoint = (endpoint_t*) data;
     endpoint_destroy(endpoint);
     return true;

@@ -126,13 +126,14 @@ uint64_t* next_if_exists(uint64_t* root, int idx) {
     return (uint64_t*) TO_HHDM(next_table_phys);
 }
 
-void vm_map_pages_continuous(vm_allocator_t* allocator, virt_addr_t virt_addr, phys_addr_t phys_addr, size_t page_count, vm_access_t access, vm_cache_t cache, vm_protection_flags_t protection) {
+void vm_map_pages_continuous(vm_allocator_t* allocator, virt_addr_t virt_addr, phys_addr_t phys_addr, size_t page_count, vm_access_t access, vm_cache_t cache, vm_flags_t flags) {
     for(size_t i = 0; i < page_count; i++) {
-        vm_map_page(allocator, virt_addr + (i * PAGE_SIZE_DEFAULT), phys_addr + (i * PAGE_SIZE_DEFAULT), access, cache, protection);
+        vm_map_page(allocator, virt_addr + (i * PAGE_SIZE_DEFAULT), phys_addr + (i * PAGE_SIZE_DEFAULT), access, cache, flags);
     }
 }
 
-void vm_map_page(vm_allocator_t* allocator, virt_addr_t virt_addr, phys_addr_t phys_addr, vm_access_t access, vm_cache_t cache, vm_protection_flags_t protection) {
+void vm_map_page(vm_allocator_t* allocator, virt_addr_t virt_addr, phys_addr_t phys_addr, vm_access_t access, vm_cache_t cache, vm_flags_t flags) {
+    vm_flags_data_t protection = convert_vm_flags(flags);   
     uint64_t intermediate_flags = 0;
 
     phys_addr_t page_table_base = is_higher_half(virt_addr) ? allocator->kernel_paging_structures_base : allocator->paging_structures_base;
@@ -166,7 +167,8 @@ void vm_map_page(vm_allocator_t* allocator, virt_addr_t virt_addr, phys_addr_t p
     l3[(uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_L3)] = page_entry;
 }
 
-void vm_reprotect_page(vm_allocator_t* allocator, virt_addr_t virt_addr, vm_access_t access, vm_cache_t cache, vm_protection_flags_t protection) {
+void vm_reprotect_page(vm_allocator_t* allocator, virt_addr_t virt_addr, vm_access_t access, vm_cache_t cache, vm_flags_t flags) {
+    vm_flags_data_t protection = convert_vm_flags(flags);
     uint64_t intermediate_flags = 0;
 
     phys_addr_t page_table_base = is_higher_half(virt_addr) ? allocator->kernel_paging_structures_base : allocator->paging_structures_base;
@@ -254,7 +256,7 @@ void vm_unmap_page(vm_allocator_t* allocator, virt_addr_t virt_addr) {
     }
 
     l3[(uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_L3)] = 0;
-    vm_flush_page_dispatch(virt_addr, 1);
+    vm_flush_page_dispatch(virt_addr);
 }
 
 void vm_unmap_pages_continuous(vm_allocator_t* allocator, virt_addr_t virt_addr, size_t page_count) {
@@ -329,3 +331,4 @@ void vm_paging_ap_init(vm_allocator_t* allocator) {
     __setup_mair();
     __setup_tcr();
 }
+

@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <arch/gdt.h>
 #include <arch/hardware/lapic.h>
 #include <common/arch.h>
@@ -25,7 +26,6 @@ typedef struct {
     uint64_t base;
 } __attribute__((packed)) idtr_t;
 
-
 extern void __load_idt(idtr_t* idtr);
 static idt_entry_t idt[256];
 extern void* x86_isr_stub_table[256];
@@ -35,7 +35,7 @@ void set_idtr_entry(int vector, void (*isr)(), uint8_t type_attr, int ist) {
     idt[vector] = (idt_entry_t) { .base_low = isr_addr & 0xFFFF, .base_mid = (isr_addr >> 16) & 0xFFFF, .selector = 0x08, .ist = ist, .type_attr = type_attr, .base_high = (isr_addr >> 32) & 0xFFFFFFFF };
 }
 
-void setup_idt_bsp() {
+void setup_interrupts_bsp() {
     idtr_t idtr;
     idtr.limit = (sizeof(idt_entry_t) * 256) - 1;
     idtr.base = (virt_addr_t) &idt;
@@ -58,7 +58,7 @@ void setup_idt_bsp() {
     __load_idt(&idtr);
 }
 
-void setup_idt_ap() {
+void setup_interrupts_ap() {
     idtr_t idtr;
     idtr.limit = (sizeof(idt_entry_t) * 256) - 1;
     idtr.base = (virt_addr_t) &idt;
@@ -103,4 +103,32 @@ void x86_64_dispatch_interupt(interrupt_frame_t* frame) {
     if(frame->vector != 0x20) {
         lapic_eoi();
     }
+}
+
+fn_interrupt_handler interrupt_handlers[256] = { 0 };
+
+void register_interrupt_handler(int vector, fn_interrupt_handler handler) {
+    assert(vector >= 0 && vector < 256);
+    assert(interrupt_handlers[vector] == 0 && "Interrupt handler already registered for this vector");
+    interrupt_handlers[vector] = handler;
+}
+
+void unregister_interrupt_handler(int vector) {
+    assert(vector >= 0 && vector < 256);
+    assert(interrupt_handlers[vector] != 0 && "No interrupt handler registered for this vector");
+    interrupt_handlers[vector] = 0;
+}
+
+void enable_interrupts() {
+    asm volatile("sti");
+}
+
+void disable_interrupts() {
+    asm volatile("cli");
+}
+
+bool interrupts_enabled() {
+    uint64_t rflags;
+    asm volatile("pushfq\n" "popq %0\n" : "=r"(rflags));
+    return (rflags & (1 << 9)) != 0;
 }
