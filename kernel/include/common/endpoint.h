@@ -12,11 +12,11 @@ typedef struct {
 } message_t;
 
 typedef struct {
-    message_t* recv_queue;
+    thread_t* owner;
     uint16_t recv_head;
     uint16_t recv_tail;
     uint16_t recv_queue_length;
-    thread_t* owner;
+    message_t* recv_queue[];
 } endpoint_t;
 
 endpoint_t* endpoint_create(thread_t* owner, uint16_t queue_length);
