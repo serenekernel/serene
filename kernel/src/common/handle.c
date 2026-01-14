@@ -65,6 +65,14 @@ void handle_set(handle_t handle, handle_meta_t ptr) {
     index->valid = true;
 }
 
+handle_t handle_dup(handle_t handle) {
+    handle_meta_t* index = (handle_meta_t*)sparse_array_access(handle_array, handle);
+    if(!index) {
+        return 0;
+    }
+    return handle_create(index->type, index->owner_thread, index->capabilities, index->data);
+}
+
 void handle_set_owner(handle_t handle, uint32_t thread_id) {
     handle_meta_t* index = (handle_meta_t*)sparse_array_access(handle_array, handle);
     if(!index) {
