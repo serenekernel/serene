@@ -13,6 +13,8 @@ typedef enum : uint64_t {
 } thread_status_t;
 
 typedef enum : uint64_t {
+    // @note: something *should* signal the thread to wake up
+    THREAD_BLOCK_REASON_NONE,
     THREAD_BLOCK_REASON_WAIT_HANDLE
 } thread_block_reason_t;
 

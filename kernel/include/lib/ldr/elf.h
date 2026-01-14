@@ -44,4 +44,9 @@ typedef struct {
 #define PFLAGS_EXECUTE (1 << 0) /* Segment is executable */
 #define PFLAGS_WRITE (1 << 1) /* Segment is writable */
 
-void kproc_create(const elf64_elf_header_t* elf_header);
+typedef enum {
+    KCREATE_PROC_NONE = 0,
+    KCREATE_PROC_SUSPEND = 1
+} kcreate_proc_flags;
+
+void kproc_create(const elf64_elf_header_t* elf_header, kcreate_proc_flags flags);

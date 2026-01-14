@@ -1,3 +1,4 @@
+#include "common/thread.h"
 #include <assert.h>
 #include <common/interrupts.h>
 #include <common/memory.h>
@@ -130,26 +131,17 @@ void load_elf_exec(const elf64_elf_header_t* header, vm_allocator_t* allocator) 
 
 // @note: this function creates a new process from a given ELF file and schedules its first thread
 // this is bad because process creation should ideally be not here but oh well
-void kproc_create(const elf64_elf_header_t* elf_header) {
+void kproc_create(const elf64_elf_header_t* elf_header, kcreate_proc_flags flags) {
     assert(is_supported_elf_file(elf_header) && "Elf file not supported");
 
     process_t* process = process_create();
     load_elf_exec(elf_header, process->address_space);
 
     thread_t* thread = sched_thread_user_init(process->address_space, (virt_addr_t) elf_header->e_entry);
-    process_add_thread(process, thread);
-    sched_add_thread(thread);
-}
-
-void testing_elf_loader() {
-    const elf64_elf_header_t* elf_header = (const elf64_elf_header_t*) module_request.response->modules[0]->address;
-
-    assert(is_supported_elf_file(elf_header) && "Elf file not supported");
-
-    process_t* process = process_create();
-    load_elf_exec(elf_header, process->address_space);
-
-    thread_t* thread = sched_thread_user_init(process->address_space, (virt_addr_t) elf_header->e_entry);
+    if(flags == KCREATE_PROC_SUSPEND) {
+        thread->thread_common.status = THREAD_STATUS_BLOCKED;
+        thread->thread_common.block_reason = THREAD_BLOCK_REASON_NONE;
+    }
     process_add_thread(process, thread);
     sched_add_thread(thread);
 }

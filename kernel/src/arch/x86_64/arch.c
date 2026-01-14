@@ -171,7 +171,14 @@ void arch_init_bsp() {
     for(size_t i = 0; i < module_request.response->module_count; i++) {
         printf("Module \"%s\" (%zu): addr=0x%lx len=0x%lx\n", module_request.response->modules[i]->string, i, module_request.response->modules[i]->address, module_request.response->modules[i]->address + module_request.response->modules[i]->size);
         if(strcmp(module_request.response->modules[i]->string, "init-system-module") == 0) {
-            kproc_create((const elf64_elf_header_t*) module_request.response->modules[i]->address);
+            kproc_create((const elf64_elf_header_t*) module_request.response->modules[i]->address, KCREATE_PROC_NONE);
+        }
+    }
+
+    for(size_t i = 0; i < module_request.response->module_count; i++) {
+        printf("Module \"%s\" (%zu): addr=0x%lx len=0x%lx\n", module_request.response->modules[i]->string, i, module_request.response->modules[i]->address, module_request.response->modules[i]->address + module_request.response->modules[i]->size);
+        if (strcmp(module_request.response->modules[i]->string, "elf-test-module") == 0) {
+            kproc_create((const elf64_elf_header_t*) module_request.response->modules[i]->address, KCREATE_PROC_SUSPEND);
         }
     }
 
