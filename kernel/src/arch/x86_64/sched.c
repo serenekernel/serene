@@ -17,6 +17,28 @@
 #include <stdint.h>
 
 typedef struct {
+    uint64_t r15;
+    uint64_t r14;
+    uint64_t r13;
+    uint64_t r12;
+    uint64_t rbp;
+    uint64_t rbx;
+    uint64_t return_addr;
+} __attribute__((packed)) kernel_context_frame_t;
+
+typedef struct {
+    uint64_t r15;
+    uint64_t r14;
+    uint64_t r13;
+    uint64_t r12;
+    uint64_t rbp;
+    uint64_t rbx;
+    uint64_t return_addr;  // Points to __userspace_init
+    uint64_t entry_point;  // loaded into rcx for the sysret
+    uint64_t user_rsp;     // user stack pointer used by __userspace_init
+} __attribute__((packed)) userspace_init_frame_t;
+
+typedef struct {
     thread_t* idle_thread;
     thread_t* reaper_thread;
     thread_t* thread_head;
@@ -178,19 +200,18 @@ thread_t* sched_thread_kernel_init(virt_addr_t entry_point) {
     thread->syscall_rsp = 0;
     thread->kernel_rsp = vmm_alloc_backed(&kernel_allocator, 4, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true) + (4 * PAGE_SIZE_DEFAULT);
     thread->thread_common.status = THREAD_STATUS_READY;
-    // @todo: holy shit what the FUCK AM I THINKING
+
     // Set up initial stack frame for context switch
-    // We need to push the SysV ABI callee-saved registers: rbx, rbp, r12, r13, r14, r15
-    // and the return address (entry point)
-    uint64_t* stack = (uint64_t*) thread->kernel_rsp;
-    *(--stack) = entry_point; // Return address (where ret will jump to)
-    *(--stack) = 0; // rbx
-    *(--stack) = 0; // rbp
-    *(--stack) = 0; // r12
-    *(--stack) = 0; // r13
-    *(--stack) = 0; // r14
-    *(--stack) = 0; // r15
-    thread->kernel_rsp = (virt_addr_t) stack;
+    kernel_context_frame_t* frame = (kernel_context_frame_t*)(thread->kernel_rsp - sizeof(kernel_context_frame_t));
+    frame->r15 = 0;
+    frame->r14 = 0;
+    frame->r13 = 0;
+    frame->r12 = 0;
+    frame->rbp = 0;
+    frame->rbx = 0;
+    frame->return_addr = entry_point;
+    
+    thread->kernel_rsp = (virt_addr_t) frame;
 
     return thread;
 }
@@ -211,17 +232,19 @@ thread_t* sched_thread_user_init(vm_allocator_t* address_space, virt_addr_t entr
     thread->thread_common.status = THREAD_STATUS_READY;
     thread_fpu_init(thread);
 
-    uint64_t* stack = (uint64_t*) thread->kernel_rsp;
-    *(--stack) = thread->thread_rsp; // user rsp (set by __userspace_init)
-    *(--stack) = entry_point; // rcx (where sysret will jump to - set by __userspace_init)
-    *(--stack) = (virt_addr_t) __userspace_init; // Return address
-    *(--stack) = 0; // rbx
-    *(--stack) = 0; // rbp
-    *(--stack) = 0; // r12
-    *(--stack) = 0; // r13
-    *(--stack) = 0; // r14
-    *(--stack) = 0; // r15
-    thread->kernel_rsp = (virt_addr_t) stack;
+    // Set up initial stack frame for userspace thread initialization
+    userspace_init_frame_t* frame = (userspace_init_frame_t*)(thread->kernel_rsp - sizeof(userspace_init_frame_t));
+    frame->r15 = 0;
+    frame->r14 = 0;
+    frame->r13 = 0;
+    frame->r12 = 0;
+    frame->rbp = 0;
+    frame->rbx = 0;
+    frame->return_addr = (virt_addr_t) __userspace_init;
+    frame->entry_point = entry_point;
+    frame->user_rsp = thread->thread_rsp;
+    
+    thread->kernel_rsp = (virt_addr_t) frame;
 
     return thread;
 }
