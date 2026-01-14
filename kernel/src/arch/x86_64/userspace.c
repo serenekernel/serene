@@ -211,6 +211,7 @@ syscall_err_t syscall_sys_wait_for(uint64_t handle_value) {
     SYSCALL_ASSERT_HANDLE(handle);
 
     SYSCALL_ASSERT_PARAM(handle_meta->owner_thread == current_thread->thread_common.tid);
+    current_thread->thread_common.block_reason = THREAD_BLOCK_REASON_WAIT_HANDLE;
     current_thread->thread_common.status_data.blocked.wait_handle = handle;
     sched_yield_status(THREAD_STATUS_BLOCKED);
     return 0;

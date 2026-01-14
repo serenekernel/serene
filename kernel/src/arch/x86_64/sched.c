@@ -4,7 +4,9 @@
 #include "arch/hardware/lapic.h"
 #include "common/arch.h"
 #include "common/interrupts.h"
+#include "common/thread.h"
 
+#include <common/handle.h>
 #include <arch/interrupts.h>
 #include <arch/msr.h>
 #include <assert.h>
@@ -272,6 +274,15 @@ thread_t* find_next_thread() {
                 continue;
             }
             return current_thread;
+        }
+        if(current_thread->thread_common.status == THREAD_STATUS_BLOCKED) {
+            if(current_thread->thread_common.block_reason == THREAD_BLOCK_REASON_WAIT_HANDLE) {
+                handle_t wait_handle = current_thread->thread_common.status_data.blocked.wait_handle;
+                if(handle_has_data(wait_handle)) {
+                    return current_thread;
+                }
+            }
+            continue;
         }
     }
 

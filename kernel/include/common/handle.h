@@ -36,7 +36,11 @@ static_assert(sizeof(handle_t) == 8, "handle_t must be 8 bytes");
 
 void handle_setup();
 handle_t handle_create(handle_type_t type, uint32_t owner_thread, uint8_t caps, void* ptr);
+
+// @note: calls handle->has_data if set
+// THIS SHOULDN'T DO ANYTHING FANCY AS IT'S CALLED FROM sched.c
 bool handle_has_data(handle_t handle);
+
 void handle_delete(handle_t handle);
 handle_meta_t* handle_get(handle_t handle);
 void handle_set(handle_t handle, handle_meta_t ptr);
