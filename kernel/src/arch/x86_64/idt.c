@@ -3,7 +3,7 @@
 #include <common/arch.h>
 #include <common/interrupts.h>
 #include <common/ipi.h>
-#include <common/memory.h>
+#include <memory/memory.h>
 #include <memory/vmm.h>
 #include <stdint.h>
 #include <arch/cr.h>

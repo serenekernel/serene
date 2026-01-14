@@ -1,5 +1,5 @@
 #include "arch/cpu_local.h"
-#include "common/memory.h"
+#include "memory/memory.h"
 #include "memory/vmm.h"
 
 #include <arch/gdt.h>

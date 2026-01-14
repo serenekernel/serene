@@ -1,6 +1,6 @@
 #pragma once
 
-#include <common/memory.h>
+#include <memory/memory.h>
 
 void pmm_init(void);
 phys_addr_t pmm_alloc_page();

@@ -1,5 +1,5 @@
 #pragma once
-#include <common/memory.h>
+#include <memory/memory.h>
 #include <lib/sparse_array.h>
 #include <rbtree.h>
 #include <stddef.h>

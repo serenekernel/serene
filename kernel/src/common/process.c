@@ -1,4 +1,4 @@
-#include "common/memory.h"
+#include "memory/memory.h"
 #include <memory/vmm.h>
 #include <common/process.h>
 #include <common/sched.h>

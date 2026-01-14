@@ -11,7 +11,7 @@
 #include <common/interrupts.h>
 #include <common/io.h>
 #include <common/ipi.h>
-#include <common/memory.h>
+#include <memory/memory.h>
 #include <common/requests.h>
 #include <common/sched.h>
 #include <common/spinlock.h>

@@ -1,7 +1,7 @@
 #include "common/thread.h"
 #include <assert.h>
 #include <common/interrupts.h>
-#include <common/memory.h>
+#include <memory/memory.h>
 #include <common/process.h>
 #include <common/sched.h>
 #include <common/requests.h>

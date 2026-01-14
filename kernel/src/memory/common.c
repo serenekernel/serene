@@ -1,4 +1,4 @@
-#include <common/memory.h>
+#include <memory/memory.h>
 #include <limine.h>
 
 const char* limine_memmap_type_to_str(uint64_t type) {

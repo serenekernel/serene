@@ -1,5 +1,5 @@
 #include <common/arch.h>
-#include <common/memory.h>
+#include <memory/memory.h>
 #include <common/requests.h>
 #include <flanterm.h>
 #include <flanterm_backends/fb.h>

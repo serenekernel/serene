@@ -1,5 +1,5 @@
 #include "common/io.h"
-#include "common/memory.h"
+#include "memory/memory.h"
 #include <common/acpi.h>
 #include "memory/vmm.h"
 #include <arch/hardware/lapic.h>

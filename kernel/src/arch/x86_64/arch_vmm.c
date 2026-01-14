@@ -3,7 +3,7 @@
 #include <arch/msr.h>
 #include <common/arch.h>
 #include <common/ipi.h>
-#include <common/memory.h>
+#include <memory/memory.h>
 #include <common/requests.h>
 #include <memory/pagedb.h>
 #include <memory/pmm.h>

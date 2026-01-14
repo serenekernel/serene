@@ -1,7 +1,7 @@
 #pragma once
 #include <common/arch.h>
 #include <stdint.h>
-#include <common/memory.h>
+#include <memory/memory.h>
 
 #ifdef __ARCH_X86_64__
 void port_write_u8(uint16_t port, uint8_t value);

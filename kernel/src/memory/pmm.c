@@ -1,6 +1,6 @@
 #include "arch/memory.h"
 
-#include <common/memory.h>
+#include <memory/memory.h>
 #include <common/requests.h>
 #include <limine.h>
 #include <memory/pmm.h>

@@ -1,5 +1,5 @@
 #include <common/handle.h>
-#include <common/memory.h>
+#include <memory/memory.h>
 #include <lib/sparse_array.h>
 #include <assert.h>
 #include <stdint.h>

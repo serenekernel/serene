@@ -11,7 +11,7 @@
 #include <arch/msr.h>
 #include <assert.h>
 #include <common/cpu_local.h>
-#include <common/memory.h>
+#include <memory/memory.h>
 #include <common/process.h>
 #include <common/sched.h>
 #include <common/spinlock.h>

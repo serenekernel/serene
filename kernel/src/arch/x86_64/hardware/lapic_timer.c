@@ -1,5 +1,5 @@
 #include "arch/cpuid.h"
-#include "common/memory.h"
+#include "memory/memory.h"
 #include "memory/vmm.h"
 
 #include <arch/hardware/lapic.h>
