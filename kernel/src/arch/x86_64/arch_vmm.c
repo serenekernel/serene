@@ -360,6 +360,9 @@ bool vm_handle_page_fault(vm_fault_reason_t reason, virt_addr_t fault_address) {
     if(node->options_type == VM_OPTIONS_DEMAND) {
         phys_addr_t phys = pmm_alloc_page();
         vm_map_page(&kernel_allocator, fault_address, phys, node->options.demand.access, node->options.demand.cache, node->options.demand.flags);
+        if(node->options.demand.zero_fill) {
+            memset((void*) fault_address, 0, PAGE_SIZE_DEFAULT);
+        }
         return true;
     }
 

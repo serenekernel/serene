@@ -21,6 +21,7 @@ typedef struct {
             vm_cache_t cache;
             vm_access_t access;
             vm_flags_t flags;
+            bool zero_fill;
         } demand;
     } options;
 

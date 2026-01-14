@@ -1,6 +1,7 @@
 #include "common/memory.h"
 #include "memory/pmm.h"
 #include "rbtree.h"
+#include <assert.h>
 #include "sparse_array.h"
 
 #include <common/requests.h>
@@ -59,16 +60,10 @@ void vmm_destory_allocator(vm_allocator_t* allocator) {
 
 vm_node_t* vmm_alloc_raw(vm_allocator_t* allocator, size_t page_count) {
     size_t total_size = page_count * PAGE_SIZE_DEFAULT;
-
     virt_addr_t alloc_addr = rb_find_first_gap(&allocator->vm_tree, allocator->start, allocator->end, total_size);
-    if(alloc_addr == 0) {
-        return 0;
-    }
-
     phys_addr_t node_phys = pmm_alloc_page();
-    if(node_phys == 0) {
-        return 0;
-    }
+    assert(alloc_addr != 0 && "vmm_alloc_raw: no suitable virtual address range found");
+    assert(node_phys != 0 && "vmm_alloc_raw: failed to allocate memory for vm_node");
 
     vm_node_t* new_node = (vm_node_t*) (TO_HHDM(node_phys));
     new_node->base = alloc_addr;
@@ -91,11 +86,13 @@ virt_addr_t vmm_alloc_demand(vm_allocator_t* allocator, size_t page_count, vm_ac
     node->options.demand.flags = flags;
     node->options.demand.access = access;
     node->options.demand.cache = cache;
+    node->options.demand.zero_fill = true;
     return node->base;
 }
 
 virt_addr_t vmm_alloc_backed(vm_allocator_t* allocator, size_t page_count, vm_access_t access, vm_cache_t cache, vm_flags_t flags, bool zero_fill) {
     vm_node_t* node = vmm_alloc_raw(allocator, page_count);
+    assert(node != nullptr && "vmm_alloc_backed: failed to allocate vm_node");
     node->options_type = VM_OPTIONS_BACKED;
     for(size_t i = 0; i < page_count; i++) {
         phys_addr_t phys = pmm_alloc_page();
