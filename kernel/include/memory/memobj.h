@@ -13,7 +13,6 @@ typedef enum {
 
 typedef enum {
     MEMOBJ_MAP_FIXED = (1 << 0),
-    MEMOBJ_MAP_GUARD = (1 << 1),
 } memobj_map_flags_t;
 
 typedef struct memobj {
