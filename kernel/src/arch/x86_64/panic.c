@@ -1,5 +1,7 @@
+#include <arch/cpu_local.h>
 #include "common/ipi.h"
-
+#include <common/process.h>
+#include <common/cpu_local.h>
 #include <arch/hardware/lapic.h>
 #include <common/arch.h>
 #include <common/interrupts.h>
@@ -70,7 +72,10 @@ __attribute__((noreturn)) void arch_panic_int(interrupt_frame_t* frame) {
         printf("unknown (0x%x | %d)", frame->vector, frame->error);
     }
     printf(" on core %d in ring %d\n", apic_id, (frame->cs & 0b11));
-
+    if((frame->cs & 0b11) == 3) {
+        thread_t* current_thread = CPU_LOCAL_READ(current_thread);
+        printf("In userspace process %d:%d\n", current_thread->thread_common.process->pid, current_thread->thread_common.tid);
+    }
     printf("rax = 0x%016llx, rbx = 0x%016llx\n", frame->rax, frame->rbx);
     printf("rcx = 0x%016llx, rdx = 0x%016llx\n", frame->rcx, frame->rdx);
     printf("rsi = 0x%016llx, rdi = 0x%016llx\n", frame->rsi, frame->rdi);
