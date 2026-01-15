@@ -12,24 +12,19 @@
 // Compile nanoprintf in this translation unit.
 #define NANOPRINTF_IMPLEMENTATION
 #include <common/io.h>
+#include <common/arch.h>
 #include <common/requests.h>
 #include <common/spinlock.h>
 #include <flanterm.h>
 #include <flanterm_backends/fb.h>
 #include <nanoprintf.h>
 
-#ifdef __ARCH_X86_64__
 void sink_debug(char* c) {
     while(*c != '\0') {
-        port_write_u8(0xe9, *c);
+        arch_debug_putc(*c);
         c++;
     }
 }
-#else
-void sink_debug(char* c) {
-    (void) c;
-}
-#endif
 
 struct flanterm_context* ft_ctx = NULL;
 

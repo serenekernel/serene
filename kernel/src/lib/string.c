@@ -1,4 +1,5 @@
-#include "memory/memory.h"
+#include <assert.h>
+#include <memory/memory.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
@@ -102,6 +103,7 @@ int strncmp(const char* s1, const char* s2, size_t n) {
 void memcpy_um_um(vm_allocator_t* dest_alloc, vm_allocator_t* src_alloc, virt_addr_t dest, virt_addr_t src, size_t n) {
     bool irq = interrupts_enabled();
     if(irq) disable_interrupts();
+    #ifdef __ARCH_X86_64__
     phys_addr_t cr3 = vm_address_space_switch_raw(src_alloc->kernel_paging_structures_base);
 
     virt_addr_t kernel_buffer = vmm_alloc_kernel_object(&kernel_allocator, n);
@@ -113,7 +115,10 @@ void memcpy_um_um(vm_allocator_t* dest_alloc, vm_allocator_t* src_alloc, virt_ad
     vmm_free(&kernel_allocator, kernel_buffer);
 
     vm_address_space_switch_raw(cr3);
-
+    #else
+    (void) dest_alloc; (void) src_alloc; (void) dest; (void) src; (void) n;
+    assert(false); // @todo:
+    #endif
     if(irq) enable_interrupts();
     return;
 }

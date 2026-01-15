@@ -1,6 +1,7 @@
 #include <ldr/elf.h>
+#include <arch/hardware/lapic.h>
 #include <common/handle.h>
-#include "arch/fpu.h"
+#include <arch/fpu.h>
 #include <string.h>
 #include <arch/gdt.h>
 #include <arch/hardware/lapic.h>
@@ -80,17 +81,7 @@ void setup_arch() {
     }
 
     lapic_init_bsp();
-    uint32_t highest_apic_id = 0;
-    // :(
-    for(size_t i = 0; i < mp_request.response->cpu_count; i++) {
-        if(mp_request.response->cpus[i]->lapic_id == lapic_get_id()) {
-            continue;
-        }
-
-        if(mp_request.response->cpus[i]->lapic_id > highest_apic_id) {
-            highest_apic_id = mp_request.response->cpus[i]->lapic_id;
-        }
-    }
+    size_t highest_apic_id = arch_get_max_cpu_id();
     ipi_init_bsp(highest_apic_id);
     printf("LAPIC INIT OK!\n");
     fpu_init_bsp();
@@ -105,7 +96,6 @@ void ps2_test(interrupt_frame_t*) {
 }
 
 static spinlock_t arch_ap_init_lock = {};
-void arch_init_ap(struct limine_mp_info* info);
 
 void thread_a() {
     int i = 0;
@@ -233,4 +223,33 @@ uint64_t arch_get_flags() {
 
 void arch_set_flags(uint64_t flags) {
     __asm__ volatile("pushq %0\n" "popfq\n" : : "r"(flags));
+}
+
+size_t arch_get_max_cpu_id(void) {
+    uint32_t highest_apic_id = 0;
+    for(size_t i = 0; i < mp_request.response->cpu_count; i++) {
+        if(mp_request.response->cpus[i]->lapic_id > highest_apic_id) {
+            highest_apic_id = mp_request.response->cpus[i]->lapic_id;
+        }
+    }
+    return (size_t)highest_apic_id;
+}
+
+void lapic_send_raw_ipi(uint32_t apic_id);
+void lapic_broadcast_raw_ipi();
+
+void arch_ipi_send_raw(uint32_t cpu_id) {
+    lapic_send_raw_ipi(cpu_id);
+}
+
+void arch_ipi_broadcast_raw() {
+    lapic_broadcast_raw_ipi();
+}
+
+void arch_ipi_eoi(void) {
+    lapic_eoi();
+}
+
+void arch_debug_putc(char c) {
+    port_write_u8(0xe9, (uint8_t)c);
 }

@@ -1,7 +1,7 @@
 #include "memory/vmm.h"
 #include <string.h>
-#include <arch/cpu_local.h>
 #include <arch/gdt.h>
+#include <arch/cpu_local.h>
 #include <arch/msr.h>
 #include <assert.h>
 #include <common/cpu_local.h>

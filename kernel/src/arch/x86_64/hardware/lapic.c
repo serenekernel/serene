@@ -208,7 +208,7 @@ void lapic_init_ap() {
     printf("initialized in %s mode for lapic %d\n", x2apic_mode ? "x2APIC" : "xAPIC", lapic_get_id());
 }
 
-void lapic_send_raw_ipi(uint32_t apic_id, uint8_t vector) {
+void lapic_send_raw_ipi(uint32_t apic_id) {
     uint64_t icr = 0;
 
     if(x2apic_mode) {
@@ -224,7 +224,7 @@ void lapic_send_raw_ipi(uint32_t apic_id, uint8_t vector) {
     icr |= LAPIC_LEVEL_DEASSERT;
     icr |= LAPIC_DESTMODE_PHYSICAL;
     icr |= LAPIC_DELMODE_FIXED;
-    icr |= vector;
+    icr |= 0xf0; // vector
 
 
     if(x2apic_mode) {
@@ -238,7 +238,7 @@ void lapic_send_raw_ipi(uint32_t apic_id, uint8_t vector) {
     }
 }
 
-void lapic_broadcast_raw_ipi(uint8_t vector) {
+void lapic_broadcast_raw_ipi() {
     uint64_t icr = 0;
 
     icr |= LAPIC_SHORTHAND_ALL_EXCL_SELF;
@@ -246,8 +246,7 @@ void lapic_broadcast_raw_ipi(uint8_t vector) {
     icr |= LAPIC_LEVEL_DEASSERT;
     icr |= LAPIC_DESTMODE_PHYSICAL;
     icr |= LAPIC_DELMODE_FIXED;
-    icr |= vector;
-
+    icr |= 0xf0; // vector
 
     if(x2apic_mode) {
         lapic_write64(LAPIC_X2APIC_ICR, icr);

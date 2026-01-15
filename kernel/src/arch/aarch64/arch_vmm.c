@@ -326,6 +326,11 @@ void vm_paging_bsp_init(vm_allocator_t* allocator) {
     printf("tcr done\n");
 }
 
+void vm_paging_setup_user(vm_allocator_t* allocator) {
+    // @note: this function is only needed on x86_64 as aarch64 uses 2 separate page tables for user and kernel space
+    (void) allocator;
+}
+
 void vm_paging_ap_init(vm_allocator_t* allocator) {
     (void) allocator;
     __setup_mair();

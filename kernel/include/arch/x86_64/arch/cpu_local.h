@@ -1,4 +1,13 @@
 #pragma once
+#include <stddef.h>
+#include <arch/gdt.h>
+
+typedef struct thread thread_t;
+
+typedef struct {
+    thread_t* current_thread;
+    tss_t* cpu_tss;
+} kernel_cpu_local_t;
 
 #define CPU_LOCAL_READ(field)                                                         \
     ({                                                                                \
