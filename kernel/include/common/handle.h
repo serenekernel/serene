@@ -4,13 +4,23 @@
 
 typedef enum : uint8_t {
     HANDLE_TYPE_INVALID = 0,
-    HANDLE_TYPE_ENDPOINT
+    HANDLE_TYPE_ENDPOINT,
+    HANDLE_TYPE_PROCESS,
+    HANDLE_TYPE_MEMOBJ
 } handle_type_t;
 
 typedef enum : uint8_t {
     HANDLE_CAPS_ENDPOINT_SEND = 1 << 0,
     HANDLE_CAPS_ENDPOINT_RECEIVE = 1 << 1,
-    HANDLE_CAPS_ENDPOINT_CLOSE = 1 << 2
+    HANDLE_CAPS_ENDPOINT_CLOSE = 1 << 2,
+    
+    HANDLE_CAPS_PROCESS_MAP = 1 << 0,
+    HANDLE_CAPS_PROCESS_COPY = 1 << 1,
+    HANDLE_CAPS_PROCESS_START = 1 << 2,
+    HANDLE_CAPS_PROCESS_DESTROY = 1 << 3,
+    
+    HANDLE_CAPS_MEMOBJ_MAP = 1 << 0,
+    HANDLE_CAPS_MEMOBJ_DESTROY = 1 << 1
 } handle_caps_endpoint_t;
 
 typedef uint64_t handle_t;

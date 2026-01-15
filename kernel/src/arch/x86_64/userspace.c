@@ -10,6 +10,7 @@
 #include <common/process.h>
 #include <common/sched.h>
 #include <common/userspace.h>
+#include <memory/memobj.h>
 #include <stdint.h>
 #include <stdio.h>
 
@@ -40,6 +41,11 @@ syscall_entry_t syscall_table[256];
 const char* convert_syscall_number(syscall_nr_t nr) {
     switch(nr) {
         case SYS_EXIT:                  return "SYS_EXIT";
+        case SYS_PROCESS_CREATE_EMPTY:  return "SYS_PROCESS_CREATE_EMPTY";
+        case SYS_START:                 return "SYS_START";
+        case SYS_MEMOBJ_CREATE:         return "SYS_MEMOBJ_CREATE";
+        case SYS_MAP:                   return "SYS_MAP";
+        case SYS_COPY_TO:               return "SYS_COPY_TO";
         case SYS_CAP_PORT_GRANT:        return "SYS_CAP_PORT_GRANT";
         case SYS_CAP_IPC_DISCOVERY:     return "SYS_CAP_IPC_DISCOVERY";
         case SYS_WAIT_FOR:              return "SYS_WAIT_FOR";
@@ -57,11 +63,14 @@ const char* convert_syscall_error(syscall_err_t err) {
         return "SUCCESS";
     }
     switch(err) {
-        case SYSCALL_ERR_INVALID_ARGUMENT: return "SYSCALL_ERR_INVALID_ARGUMENT";
-        case SYSCALL_ERR_INVALID_SYSCALL:  return "SYSCALL_ERR_INVALID_SYSCALL";
-        case SYSCALL_ERR_INVALID_HANDLE:   return "SYSCALL_ERR_INVALID_HANDLE";
-        case SYSCALL_ERR_WOULD_BLOCK:      return "SYSCALL_ERR_WOULD_BLOCK";
-        default:                           return "UNKNOWN_SYSCALL_ERROR";
+        case SYSCALL_ERR_INVALID_ARGUMENT:  return "SYSCALL_ERR_INVALID_ARGUMENT";
+        case SYSCALL_ERR_INVALID_SYSCALL:   return "SYSCALL_ERR_INVALID_SYSCALL";
+        case SYSCALL_ERR_INVALID_HANDLE:    return "SYSCALL_ERR_INVALID_HANDLE";
+        case SYSCALL_ERR_WOULD_BLOCK:       return "SYSCALL_ERR_WOULD_BLOCK";
+        case SYSCALL_ERR_PERMISSION_DENIED: return "SYSCALL_ERR_PERMISSION_DENIED";
+        case SYSCALL_ERR_OUT_OF_MEMORY:     return "SYSCALL_ERR_OUT_OF_MEMORY";
+        case SYSCALL_ERR_ADDRESS_IN_USE:    return "SYSCALL_ERR_ADDRESS_IN_USE";
+        default:                            return "UNKNOWN_SYSCALL_ERROR";
     }
 }
 
@@ -230,6 +239,148 @@ syscall_err_t syscall_sys_wait_for(uint64_t handle_value) {
     return 0;
 }
 
+syscall_err_t syscall_sys_process_create_empty() {
+    thread_t* current_thread = CPU_LOCAL_READ(current_thread);
+    
+    process_t* new_process = process_create();
+    if (!new_process) {
+        return SYSCALL_ERR_OUT_OF_MEMORY;
+    }
+    
+    handle_t handle = handle_create(
+        HANDLE_TYPE_PROCESS,
+        current_thread->thread_common.tid,
+        HANDLE_CAPS_PROCESS_MAP | HANDLE_CAPS_PROCESS_COPY | 
+        HANDLE_CAPS_PROCESS_START | HANDLE_CAPS_PROCESS_DESTROY,
+        (void*) new_process
+    );
+    
+    printf("Created empty process %d, handle=0x%llx\n", new_process->pid, handle);
+    return (syscall_err_t) handle;
+}
+
+syscall_err_t syscall_sys_memobj_create(uint64_t size, uint64_t perms) {
+    thread_t* current_thread = CPU_LOCAL_READ(current_thread);
+    
+    SYSCALL_ASSERT_PARAM(size > 0 && size <= (1ULL << 30)); // Max 1GB per object
+    SYSCALL_ASSERT_PARAM(perms <= (MEMOBJ_PERM_READ | MEMOBJ_PERM_WRITE | MEMOBJ_PERM_EXEC));
+    
+    memobj_t* memobj = memobj_create(size, (memobj_perms_t) perms);
+    if (!memobj) {
+        return SYSCALL_ERR_OUT_OF_MEMORY;
+    }
+    
+    handle_t handle = handle_create(
+        HANDLE_TYPE_MEMOBJ,
+        current_thread->thread_common.tid,
+        HANDLE_CAPS_MEMOBJ_MAP | HANDLE_CAPS_MEMOBJ_DESTROY,
+        (void*) memobj
+    );
+    
+    printf("Created memobj id=%llu size=%zu perms=0x%llx, handle=0x%llx\n",
+           memobj->id, memobj->size, perms, handle);
+    return (syscall_err_t) handle;
+}
+
+syscall_err_t syscall_sys_map(uint64_t process_handle_value, uint64_t memobj_handle_value, 
+                               uint64_t vaddr, uint64_t perms, uint64_t flags) {
+    handle_t process_handle = *(handle_t*) &process_handle_value;
+    handle_t memobj_handle = *(handle_t*) &memobj_handle_value;
+    
+    SYSCALL_ASSERT_HANDLE_TYPE(process_handle, HANDLE_TYPE_PROCESS);
+    SYSCALL_ASSERT_HANDLE_TYPE(memobj_handle, HANDLE_TYPE_MEMOBJ);
+    
+    handle_meta_t* process_meta = handle_get(process_handle);
+    handle_meta_t* memobj_meta = handle_get(memobj_handle);
+    
+    SYSCALL_ASSERT_PARAM(process_meta->capabilities & HANDLE_CAPS_PROCESS_MAP);
+    SYSCALL_ASSERT_PARAM(memobj_meta->capabilities & HANDLE_CAPS_MEMOBJ_MAP);
+    
+    process_t* target_process = (process_t*) process_meta->data;
+    memobj_t* memobj = (memobj_t*) memobj_meta->data;
+    
+    SYSCALL_ASSERT_PARAM(target_process != NULL);
+    SYSCALL_ASSERT_PARAM(memobj != NULL);
+    
+    if (!memobj_validate_perms((memobj_perms_t) perms, memobj->max_perms)) {
+        return SYSCALL_ERR_PERMISSION_DENIED;
+    }
+    
+    virt_addr_t result_vaddr = memobj_map(
+        target_process->address_space,
+        memobj,
+        (virt_addr_t) vaddr,
+        (memobj_perms_t) perms,
+        (memobj_map_flags_t) flags
+    );
+    
+    if (result_vaddr == 0) {
+        return SYSCALL_ERR_ADDRESS_IN_USE;
+    }
+    
+    return (syscall_err_t) result_vaddr;
+}
+
+syscall_err_t syscall_sys_copy_to(uint64_t process_handle_value, uint64_t dst, 
+                                   uint64_t src, uint64_t size) {
+    handle_t process_handle = *(handle_t*) &process_handle_value;
+    
+    SYSCALL_ASSERT_HANDLE_TYPE(process_handle, HANDLE_TYPE_PROCESS);
+    
+    handle_meta_t* process_meta = handle_get(process_handle);
+    SYSCALL_ASSERT_PARAM(process_meta->capabilities & HANDLE_CAPS_PROCESS_COPY);
+    
+    process_t* target_process = (process_t*) process_meta->data;
+    thread_t* current_thread = CPU_LOCAL_READ(current_thread);
+    
+    SYSCALL_ASSERT_PARAM(target_process != NULL);
+    SYSCALL_ASSERT_PARAM(size > 0 && size <= (4 * PAGE_SIZE_DEFAULT));
+    for(size_t i = 0; i < size; i++) {
+        printf("0x%02x ", *((uint8_t*)(src + i)));
+    }
+    memcpy_um_um(
+        target_process->address_space,
+        current_thread->thread_common.address_space,
+        (virt_addr_t) dst,
+        (virt_addr_t) src,
+        size
+    );
+    
+    return 0;
+}
+
+syscall_err_t syscall_sys_start(uint64_t process_handle_value, uint64_t entry) {
+    handle_t process_handle = *(handle_t*) &process_handle_value;
+    
+    SYSCALL_ASSERT_HANDLE_TYPE(process_handle, HANDLE_TYPE_PROCESS);
+    
+    handle_meta_t* process_meta = handle_get(process_handle);
+    SYSCALL_ASSERT_PARAM(process_meta->capabilities & HANDLE_CAPS_PROCESS_START);
+    
+    process_t* target_process = (process_t*) process_meta->data;
+    SYSCALL_ASSERT_PARAM(target_process != NULL);
+    SYSCALL_ASSERT_PARAM(entry != 0);
+    
+    // @todo: validate that entry is executable
+    // for now we just trust them, trust the caller
+    thread_t* thread = sched_thread_user_init(
+        target_process->address_space,
+        (virt_addr_t) entry
+    );
+    
+    if (!thread) {
+        return SYSCALL_ERR_OUT_OF_MEMORY;
+    }
+    
+    process_add_thread(target_process, thread);
+    sched_add_thread(thread);    
+    
+    printf("Started process %d at entry=0x%llx\n",
+           target_process->pid, entry);
+    
+    return 0;
+}
+
 syscall_err_t syscall_sys_invalid(uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4) {
     (void) arg0;
     (void) arg1;
@@ -361,6 +512,12 @@ void userspace_init() {
     }
 
     SYSCALL_DISPATCHER(SYS_EXIT, syscall_sys_exit, 1);
+
+    SYSCALL_DISPATCHER(SYS_PROCESS_CREATE_EMPTY, syscall_sys_process_create_empty, 0);
+    SYSCALL_DISPATCHER(SYS_START, syscall_sys_start, 2);
+    SYSCALL_DISPATCHER(SYS_MEMOBJ_CREATE, syscall_sys_memobj_create, 2);
+    SYSCALL_DISPATCHER(SYS_MAP, syscall_sys_map, 5);
+    SYSCALL_DISPATCHER(SYS_COPY_TO, syscall_sys_copy_to, 4);
 
     SYSCALL_DISPATCHER(SYS_CAP_PORT_GRANT, syscall_sys_cap_port_grant, 2);
     SYSCALL_DISPATCHER(SYS_CAP_IPC_DISCOVERY, syscall_sys_cap_ipc_discovery, 0);

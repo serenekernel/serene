@@ -21,6 +21,7 @@
 #include <memory/pagedb.h>
 #include <memory/pmm.h>
 #include <memory/vmm.h>
+#include <memory/memobj.h>
 #include <sparse_array.h>
 #include <stdio.h>
 #include <common/acpi.h>
@@ -146,6 +147,7 @@ void arch_init_bsp() {
 
     sched_init_bsp();
     handle_setup();
+    memobj_init();
     userspace_init();
     // thread_t* test1 = sched_thread_kernel_init((virt_addr_t) thread_a);
     // thread_t* test2 = sched_thread_kernel_init((virt_addr_t) thread_b);
