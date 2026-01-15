@@ -41,8 +41,6 @@ __handle_syscall:
     call dispatch_syscall
     cli
 
-    xor rdx, rdx
-
     xor r12, r12
     mov r12, ds
     mov r12, es
