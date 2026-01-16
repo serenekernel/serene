@@ -1,9 +1,8 @@
-#include <arch/cpuid.h>
-#include <arch/fpu.h>
+#include <arch/internal/cpuid.h>
+#include <arch/hardware/fpu.h>
 #include <assert.h>
 #include <common/arch.h>
 #include <stdio.h>
-#include <arch/cr.h>
 
 size_t g_fpu_area_size;
 void (*g_fpu_save)(void* ptr);

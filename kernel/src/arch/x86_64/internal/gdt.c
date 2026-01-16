@@ -1,8 +1,8 @@
-#include "arch/cpu_local.h"
-#include "memory/memory.h"
-#include "memory/vmm.h"
+#include <arch/cpu_local.h>
+#include <memory/memory.h>
+#include <memory/vmm.h>
 #include <string.h>
-#include <arch/gdt.h>
+#include <arch/internal/gdt.h>
 #include <common/cpu_local.h>
 #include <stdint.h>
 

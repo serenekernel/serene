@@ -1,6 +1,6 @@
-#include "arch/cpuid.h"
-#include "memory/memory.h"
-#include "memory/vmm.h"
+#include <arch/internal/cpuid.h>
+#include <memory/memory.h>
+#include <memory/vmm.h>
 
 #include <arch/hardware/lapic.h>
 #include <arch/msr.h>

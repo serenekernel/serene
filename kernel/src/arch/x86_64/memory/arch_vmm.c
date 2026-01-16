@@ -1,5 +1,5 @@
-#include "arch/cr.h"
-#include <arch/cpuid.h>
+#include <arch/internal/cr.h>
+#include <arch/internal/cpuid.h>
 #include <arch/msr.h>
 #include <common/arch.h>
 #include <common/ipi.h>

@@ -1,6 +1,6 @@
 #pragma once
 #include <stddef.h>
-#include <arch/gdt.h>
+#include <arch/internal/gdt.h>
 
 typedef struct thread thread_t;
 

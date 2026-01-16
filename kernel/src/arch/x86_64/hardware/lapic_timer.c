@@ -1,11 +1,10 @@
-#include "arch/cpuid.h"
-#include "memory/memory.h"
-#include "memory/vmm.h"
+#include <arch/internal/cpuid.h>
+#include <memory/memory.h>
+#include <memory/vmm.h>
 
 #include <arch/hardware/lapic.h>
 #include <arch/hardware/pit.h>
 #include <arch/msr.h>
-#include <assert.h>
 #include <common/io.h>
 #include <stdint.h>
 #include <stdio.h>

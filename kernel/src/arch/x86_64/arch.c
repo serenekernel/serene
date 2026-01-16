@@ -1,10 +1,10 @@
-#include <arch/cr.h>
+#include <arch/internal/cr.h>
 #include <ldr/elf.h>
 #include <arch/hardware/lapic.h>
 #include <common/handle.h>
-#include <arch/fpu.h>
+#include <arch/hardware/fpu.h>
 #include <string.h>
-#include <arch/gdt.h>
+#include <arch/internal/gdt.h>
 #include <arch/hardware/lapic.h>
 #include <arch/interrupts.h>
 #include <arch/msr.h>

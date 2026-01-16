@@ -1,10 +1,10 @@
-#include "arch/cpu_local.h"
-#include "arch/fpu.h"
-#include "arch/gdt.h"
-#include "arch/hardware/lapic.h"
-#include "common/arch.h"
-#include "common/interrupts.h"
-#include "common/thread.h"
+#include <arch/cpu_local.h>
+#include <arch/hardware/fpu.h>
+#include <arch/internal/gdt.h>
+#include <arch/hardware/lapic.h>
+#include <common/arch.h>
+#include <common/interrupts.h>
+#include <common/thread.h>
 
 #include <common/handle.h>
 #include <arch/interrupts.h>

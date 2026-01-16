@@ -1,8 +1,7 @@
-#include "common/arch.h"
-#include "memory/vmm.h"
-
+#include <common/arch.h>
+#include <memory/vmm.h>
 #include <arch/cpu_local.h>
-#include <arch/gdt.h>
+#include <arch/internal/gdt.h>
 #include <arch/msr.h>
 #include <assert.h>
 #include <common/cpu_local.h>

@@ -3,6 +3,7 @@
 #include <memory/pmm.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <assert.h>
 
 typedef struct pmm_node {
     struct pmm_node* next;
@@ -13,7 +14,7 @@ pmm_node_t* head = NULL;
 
 phys_addr_t pmm_alloc_page() {
     pmm_node_t* current = head;
-    if(current == NULL) { return 0; }
+    assert(current != NULL && "out of physical memory");
     head = head->next;
     return (phys_addr_t) FROM_HHDM(current);
 }

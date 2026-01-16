@@ -1,5 +1,5 @@
 #pragma once
-#include "arch/cr.h"
+#include <arch/internal/cr.h>
 #include <common/interrupts.h>
 #include <stddef.h>
 #include <limine.h>

@@ -7,7 +7,7 @@
 #include <common/interrupts.h>
 #include <memory/vmm.h>
 #include <stdio.h>
-#include <arch/cr.h>
+#include <arch/internal/cr.h>
 
 const char* name_table[22] = { "Divide Error",
                                "Debug Exception",
