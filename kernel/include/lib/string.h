@@ -15,6 +15,9 @@ int strncmp(const char* s1, const char* s2, size_t n);
 // copies n bytes from userspace src to userspace dest
 // @note: these functions don't do cow copies, nor does it map anything new in, nor do we handle page faults1
 void memcpy_um_um(vm_allocator_t* dest_alloc, vm_allocator_t* src_alloc, virt_addr_t dest, virt_addr_t src, size_t n);
-// @todo: unimpl
 void memcpy_km_um(vm_allocator_t* dest_alloc, virt_addr_t dest, virt_addr_t src, size_t n);
+// @todo: unimpl
 void memcpy_um_km(vm_allocator_t* src_alloc, virt_addr_t dest, virt_addr_t src, size_t n);
+
+// sets n bytes in userspace dest to value c
+void memset_vm(vm_allocator_t* dest_alloc, virt_addr_t dest, int c, size_t n);

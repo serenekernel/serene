@@ -48,7 +48,7 @@ __attribute__((noreturn)) void arch_panic_int(interrupt_frame_t* frame) {
         int protection_key = ((frame->error & 0b00100000) > 0);
         int shadow_stack = ((frame->error & 0b01000000) > 0);
         int sgx = ((frame->error & 0b0100000000000000) > 0);
-        printf("Page fault @ 0x%016llx [ppv=%d, write=%d, ring3=%d, resv=%d, fetch=%d, pk=%d, ss=%d, sgx=%d]", __read_cr2(), page_protection_violation, write_access, user_mode, reserved_bit, instruction_fetch, protection_key, shadow_stack, sgx);
+        printf("Page fault @ 0x%016llx [ppv=%d, write=%d, ring3=%d, resv=%d, fetch=%d, pk=%d, ss=%d, sgx=%d, wp=%d, smap=%d]", __read_cr2(), page_protection_violation, write_access, user_mode, reserved_bit, instruction_fetch, protection_key, shadow_stack, sgx, arch_get_wp(), arch_get_uap());
     } else if(frame->vector == 0x0D) {
         if(frame->error == 0) {
             printf("General Protection Fault (0x%x | no error code)", frame->vector);

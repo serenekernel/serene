@@ -1,3 +1,4 @@
+#include <common/arch.h>
 #include <assert.h>
 #include <memory/memory.h>
 #include <stddef.h>
@@ -104,19 +105,81 @@ void memcpy_um_um(vm_allocator_t* dest_alloc, vm_allocator_t* src_alloc, virt_ad
     bool irq = interrupts_enabled();
     if(irq) disable_interrupts();
     #ifdef __ARCH_X86_64__
-    phys_addr_t cr3 = vm_address_space_switch_raw(src_alloc->kernel_paging_structures_base);
+    
+    ENTER_UAP_SECTION();
+    ENTER_ADDRESS_SWITCH();
 
+    vm_address_space_switch(src_alloc);
+    
     virt_addr_t kernel_buffer = vmm_alloc_kernel_object(&kernel_allocator, n);
     memcpy((void*) kernel_buffer, (void*) src, n);
 
-    vm_address_space_switch_raw(dest_alloc->kernel_paging_structures_base);
+    vm_address_space_switch(dest_alloc);
+    ENTER_WP_SECTION();
     memcpy((void*) dest, (void*) kernel_buffer, n);
-
+    EXIT_WP_SECTION();
     vmm_free(&kernel_allocator, kernel_buffer);
 
-    vm_address_space_switch_raw(cr3);
+    EXIT_ADDRESS_SWITCH();
+    EXIT_UAP_SECTION();
+
     #else
     (void) dest_alloc; (void) src_alloc; (void) dest; (void) src; (void) n;
+    assert(false); // @todo:
+    #endif
+    if(irq) enable_interrupts();
+    return;
+}
+
+void memcpy_km_um(vm_allocator_t* dest_alloc, virt_addr_t dest, virt_addr_t src, size_t n) {
+    bool irq = interrupts_enabled();
+    if(irq) disable_interrupts();
+    #ifdef __ARCH_X86_64__
+    
+    ENTER_ADDRESS_SWITCH();
+    ENTER_UAP_SECTION();
+    ENTER_WP_SECTION();
+
+    vm_address_space_switch(dest_alloc);
+    memcpy((void*) dest, (void*) src, n);
+    
+    EXIT_WP_SECTION();
+    EXIT_UAP_SECTION();
+    EXIT_ADDRESS_SWITCH()
+
+    #else
+    (void) dest_alloc; (void) dest; (void) src; (void) n;
+    assert(false); // @todo:
+    #endif
+    if(irq) enable_interrupts();
+    return;
+}
+
+void memset_vm(vm_allocator_t* dest_alloc, virt_addr_t dest, int c, size_t n) {
+    bool irq = interrupts_enabled();
+    if(irq) disable_interrupts();
+
+    if(dest_alloc->is_user == false) {
+        memset((void*) dest, c, n);
+        if(irq) enable_interrupts();
+        return;
+    }
+
+    #ifdef __ARCH_X86_64__
+    ENTER_ADDRESS_SWITCH();
+    ENTER_UAP_SECTION();
+    ENTER_WP_SECTION();
+    
+    vm_address_space_switch(dest_alloc);
+
+    memset((void*) dest, c, n);
+
+    EXIT_WP_SECTION();
+    EXIT_UAP_SECTION();
+    EXIT_ADDRESS_SWITCH();
+
+    #else
+    (void) dest_alloc; (void) dest; (void) src; (void) n;
     assert(false); // @todo:
     #endif
     if(irq) enable_interrupts();

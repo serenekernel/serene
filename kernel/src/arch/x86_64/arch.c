@@ -1,3 +1,4 @@
+#include <arch/cr.h>
 #include <ldr/elf.h>
 #include <arch/hardware/lapic.h>
 #include <common/handle.h>
@@ -65,7 +66,76 @@ void setup_memory() {
     printf("we pray\n");
     vm_address_space_switch(&kernel_allocator);
     printf("we didn't die\n");
+    arch_memory_barrier();
+    uint64_t cr4 = __read_cr4();
+    cr4 |= (1 << 20); // Enable SMEP
+    cr4 |= (1 << 21); // Enable SMAP
+    __write_cr4(cr4);
+    arch_memory_barrier();
+    uint64_t cr0 = __read_cr0();
+    cr0 |= (1 << 16); // Enable WP
+    __write_cr0(cr0);
+    arch_memory_barrier();
+
 }
+
+void __set_uap(bool value) {
+    arch_memory_barrier();
+    uint64_t cr4 = __read_cr4();
+    if (value) {
+        cr4 |= (1 << 21); // Set SMAP bit
+    } else {
+        cr4 &= ~(1 << 21); // Clear SMAP bit
+    }
+    __write_cr4(cr4);
+    arch_memory_barrier();
+}
+
+void __set_wp(bool value) {
+    arch_memory_barrier();
+    uint64_t cr0 = __read_cr0();
+    if (value) {
+        cr0 |= (1 << 16); // Set WP bit
+    } else {
+        cr0 &= ~(1 << 16); // Clear WP bit
+    }
+    __write_cr0(cr0);
+    arch_memory_barrier();
+}
+
+
+bool arch_get_uap() {
+    uint64_t cr4 = __read_cr4();
+    bool smap = (cr4 >> 21) & 1;
+    return smap;
+}
+
+bool arch_disable_uap() {
+    bool prev = arch_get_uap();
+    __set_uap(false);
+    return prev;
+}
+
+void arch_restore_uap(bool __prev) {
+    __set_uap(__prev);
+}
+
+bool arch_get_wp() {
+    uint64_t cr0 = __read_cr0();
+    bool wp = (cr0 >> 16) & 1;
+    return wp;
+}
+
+bool arch_disable_wp() {
+    bool prev = arch_get_wp();
+    __set_wp(false);
+    return prev;
+}
+
+void arch_restore_wp(bool __prev) {
+    __set_wp(__prev);
+}
+
 
 void setup_arch() {
     init_cpu_local();

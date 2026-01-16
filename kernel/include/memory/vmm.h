@@ -28,6 +28,7 @@ typedef struct {
 } vm_node_t;
 
 typedef struct {
+    bool is_user;
     virt_addr_t start;
     virt_addr_t end;
 

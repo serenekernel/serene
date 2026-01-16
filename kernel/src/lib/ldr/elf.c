@@ -73,8 +73,6 @@ void load_elf_exec(const elf64_elf_header_t* header, vm_allocator_t* allocator) 
     size_t total_page_count = (max_addr - min_addr) / PAGE_SIZE_DEFAULT;
     printf("load: 0x%llx, %d pages\n", min_addr, total_page_count);
 
-    vm_address_space_switch(allocator);
-
     virt_addr_t allocation = vmm_try_alloc_backed(allocator, min_addr, total_page_count, VM_ACCESS_USER, VM_CACHE_NORMAL, VM_READ_WRITE, true);
     assert(allocation != 0 && "failed to allocate segment for elf loading");
 
@@ -88,11 +86,11 @@ void load_elf_exec(const elf64_elf_header_t* header, vm_allocator_t* allocator) 
         virt_addr_t segment_vaddr = phdr->p_vaddr + base_address;
 
         // Copy file contents
-        memcpy((void*) segment_vaddr, (const void*) ((uintptr_t) header + phdr->p_offset), phdr->p_filesz);
+        memcpy_km_um(allocator, (virt_addr_t) segment_vaddr, ((virt_addr_t) header + phdr->p_offset), phdr->p_filesz);
 
         // Zero-fill remaining memory (BSS section)
         if(phdr->p_memsz > phdr->p_filesz) {
-            memset((void*) (segment_vaddr + phdr->p_filesz), 0, phdr->p_memsz - phdr->p_filesz);
+            memset_vm(allocator, (virt_addr_t) (segment_vaddr + phdr->p_filesz), 0, phdr->p_memsz - phdr->p_filesz);
         }
     }
 

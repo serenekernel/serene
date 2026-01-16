@@ -22,6 +22,7 @@ size_t vm_length_of_node(rb_node_t* node) {
 }
 
 void vmm_kernel_init(vm_allocator_t* allocator, virt_addr_t start, virt_addr_t end) {
+    allocator->is_user = false;
     allocator->start = start;
     allocator->end = end;
     allocator->vm_tree.root = nullptr;
@@ -36,6 +37,7 @@ void vmm_kernel_init(vm_allocator_t* allocator, virt_addr_t start, virt_addr_t e
 void vm_paging_setup_user(vm_allocator_t* allocator);
 
 void vmm_user_init(vm_allocator_t* allocator, virt_addr_t start, virt_addr_t end) {
+    allocator->is_user = true;
     allocator->start = start;
     allocator->end = end;
     allocator->vm_tree.root = nullptr;
@@ -99,7 +101,7 @@ virt_addr_t vmm_alloc_backed(vm_allocator_t* allocator, size_t page_count, vm_ac
         vm_map_page(allocator, node->base + (i * PAGE_SIZE_DEFAULT), phys, access, cache, flags);
     }
     if(zero_fill) {
-        memset((void*) node->base, 0, page_count * PAGE_SIZE_DEFAULT);
+        memset_vm(allocator, node->base, 0, page_count * PAGE_SIZE_DEFAULT);
     }
     return node->base;
 }
@@ -146,7 +148,7 @@ virt_addr_t vmm_try_alloc_backed(vm_allocator_t* allocator, virt_addr_t address,
         vm_map_page(allocator, new_node->base + (i * PAGE_SIZE_DEFAULT), phys, access, cache, flags);
     }
     if(zero_fill) {
-        memset((void*) new_node->base, 0, page_count * PAGE_SIZE_DEFAULT);
+        memset_vm(allocator, new_node->base, 0, page_count * PAGE_SIZE_DEFAULT);
     }
 
     return new_node->base;
