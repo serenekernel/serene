@@ -9,7 +9,7 @@
 #include <string.h>
 #include <common/arch.h>
 
-syscall_err_t syscall_sys_endpoint_create() {
+syscall_ret_t syscall_sys_endpoint_create() {
     thread_t* thread = CPU_LOCAL_READ(current_thread);
     endpoint_t* endpoint = endpoint_create(thread, 16);
 
@@ -19,17 +19,17 @@ syscall_err_t syscall_sys_endpoint_create() {
     // @note: temp
     sched_wake_thread_id(4);
 
-    return (syscall_err_t) handle;
+    return SYSCALL_RET_VALUE(handle);
 }
 
-syscall_err_t syscall_sys_endpoint_destroy(uint64_t handle_value) {
+syscall_ret_t syscall_sys_endpoint_destroy(uint64_t handle_value) {
     handle_t handle = *(handle_t*) &handle_value;
     SYSCALL_ASSERT_HANDLE_TYPE(handle, HANDLE_TYPE_ENDPOINT);
     handle_delete(handle);
-    return 0;
+    return SYSCALL_RET_VALUE(0);
 }
 
-syscall_err_t syscall_sys_endpoint_send(uint64_t handle_value, uint64_t payload, uint64_t payload_length) {
+syscall_ret_t syscall_sys_endpoint_send(uint64_t handle_value, uint64_t payload, uint64_t payload_length) {
     handle_t handle = *(handle_t*) &handle_value;
     handle_meta_t* handle_meta = handle_get(handle);
     SYSCALL_ASSERT_HANDLE_TYPE(handle, HANDLE_TYPE_ENDPOINT);
@@ -55,20 +55,20 @@ syscall_err_t syscall_sys_endpoint_send(uint64_t handle_value, uint64_t payload,
 
     bool result = endpoint_send(endpoint, message);
     if(!result) {
-        return SYSCALL_ERR_WOULD_BLOCK;
+        return SYSCALL_RET_ERROR(SYSCALL_ERR_WOULD_BLOCK);
     }
 
-    return 0;
+    return SYSCALL_RET_VALUE(0);
 }
 
-syscall_err_t syscall_sys_endpoint_free_message(uint64_t message_ptr) {
+syscall_ret_t syscall_sys_endpoint_free_message(uint64_t message_ptr) {
     message_t* message = (message_t*) message_ptr;
     thread_t* thread = CPU_LOCAL_READ(current_thread);
     vmm_free(thread->thread_common.address_space, (virt_addr_t) message);
-    return 0;
+    return SYSCALL_RET_VALUE(0) ;
 }
 
-syscall_err_t syscall_sys_endpoint_receive(uint64_t handle_value) {
+syscall_ret_t syscall_sys_endpoint_receive(uint64_t handle_value) {
     handle_t handle = *(handle_t*) &handle_value;
     handle_meta_t* handle_meta = handle_get(handle);
     SYSCALL_ASSERT_HANDLE_TYPE(handle, HANDLE_TYPE_ENDPOINT);
@@ -78,9 +78,9 @@ syscall_err_t syscall_sys_endpoint_receive(uint64_t handle_value) {
 
     message_t* message = endpoint_receive(endpoint);
     if(!message) {
-        return SYSCALL_ERR_WOULD_BLOCK;
+        return SYSCALL_RET_ERROR(SYSCALL_ERR_WOULD_BLOCK);
     }
 
     // Return the pointer directly - user can read length from message_t->length
-    return (syscall_err_t) (uint64_t) message;
+    return SYSCALL_RET_VALUE((uint64_t) message);
 }

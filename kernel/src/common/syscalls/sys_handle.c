@@ -8,7 +8,7 @@
 #include <common/endpoint.h>
 #include <common/arch.h>
 
-syscall_err_t syscall_sys_wait_for(uint64_t handle_value) {
+syscall_ret_t syscall_sys_wait_for(uint64_t handle_value) {
     handle_t handle = *(handle_t*) &handle_value;
     handle_meta_t* handle_meta = handle_get(handle);
     thread_t* current_thread = CPU_LOCAL_READ(current_thread);
@@ -18,5 +18,5 @@ syscall_err_t syscall_sys_wait_for(uint64_t handle_value) {
     current_thread->thread_common.block_reason = THREAD_BLOCK_REASON_WAIT_HANDLE;
     current_thread->thread_common.status_data.blocked.wait_handle = handle;
     sched_yield_status(THREAD_STATUS_BLOCKED);
-    return 0;
+    return SYSCALL_RET_VALUE(0);
 }

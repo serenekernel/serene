@@ -6,7 +6,7 @@
 #include <common/cpu_local.h>
 #include <string.h>
 
-syscall_err_t syscall_sys_memobj_create(uint64_t size, uint64_t perms) {
+syscall_ret_t syscall_sys_memobj_create(uint64_t size, uint64_t perms) {
     thread_t* current_thread = CPU_LOCAL_READ(current_thread);
     
     SYSCALL_ASSERT_PARAM(size > 0 && size <= (1ULL << 30)); // Max 1GB per object
@@ -14,7 +14,7 @@ syscall_err_t syscall_sys_memobj_create(uint64_t size, uint64_t perms) {
     
     memobj_t* memobj = memobj_create(size, (memobj_perms_t) perms);
     if (!memobj) {
-        return SYSCALL_ERR_OUT_OF_MEMORY;
+        return SYSCALL_RET_ERROR(SYSCALL_ERR_OUT_OF_MEMORY);
     }
     
     handle_t handle = handle_create(
@@ -26,10 +26,10 @@ syscall_err_t syscall_sys_memobj_create(uint64_t size, uint64_t perms) {
     
     printf("Created memobj id=%llu size=%zu perms=0x%llx, handle=0x%llx\n",
            memobj->id, memobj->size, perms, handle);
-    return (syscall_err_t) handle;
+    return SYSCALL_RET_VALUE(handle);
 }
 
-syscall_err_t syscall_sys_map(uint64_t process_handle_value, uint64_t memobj_handle_value, 
+syscall_ret_t syscall_sys_map(uint64_t process_handle_value, uint64_t memobj_handle_value, 
                                uint64_t vaddr, uint64_t perms, uint64_t flags) {
     handle_t process_handle = *(handle_t*) &process_handle_value;
     handle_t memobj_handle = *(handle_t*) &memobj_handle_value;
@@ -50,7 +50,7 @@ syscall_err_t syscall_sys_map(uint64_t process_handle_value, uint64_t memobj_han
     SYSCALL_ASSERT_PARAM(memobj != NULL);
     
     if (!memobj_validate_perms((memobj_perms_t) perms, memobj->max_perms)) {
-        return SYSCALL_ERR_PERMISSION_DENIED;
+        return SYSCALL_RET_ERROR(SYSCALL_ERR_PERMISSION_DENIED);
     }
     
     virt_addr_t result_vaddr = memobj_map(
@@ -62,13 +62,13 @@ syscall_err_t syscall_sys_map(uint64_t process_handle_value, uint64_t memobj_han
     );
     
     if (result_vaddr == 0) {
-        return SYSCALL_ERR_ADDRESS_IN_USE;
+        return SYSCALL_RET_ERROR(SYSCALL_ERR_ADDRESS_IN_USE);
     }
     
-    return (syscall_err_t) result_vaddr;
+    return SYSCALL_RET_VALUE(result_vaddr);
 }
 
-syscall_err_t syscall_sys_copy_to(uint64_t process_handle_value, uint64_t dst, 
+syscall_ret_t syscall_sys_copy_to(uint64_t process_handle_value, uint64_t dst, 
                                    uint64_t src, uint64_t size) {
     handle_t process_handle = *(handle_t*) &process_handle_value;
     
@@ -91,5 +91,5 @@ syscall_err_t syscall_sys_copy_to(uint64_t process_handle_value, uint64_t dst,
         size
     );
     
-    return 0;
+    return SYSCALL_RET_VALUE(0);
 }

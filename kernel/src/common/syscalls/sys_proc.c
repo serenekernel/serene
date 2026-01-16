@@ -9,12 +9,12 @@
 #include <string.h>
 
 
-syscall_err_t syscall_sys_process_create_empty() {
+syscall_ret_t syscall_sys_process_create_empty() {
     thread_t* current_thread = CPU_LOCAL_READ(current_thread);
     
     process_t* new_process = process_create();
     if (!new_process) {
-        return SYSCALL_ERR_OUT_OF_MEMORY;
+        return SYSCALL_RET_ERROR(SYSCALL_ERR_OUT_OF_MEMORY);
     }
     
     handle_t handle = handle_create(
@@ -26,10 +26,10 @@ syscall_err_t syscall_sys_process_create_empty() {
     );
     
     printf("Created empty process %d, handle=0x%llx\n", new_process->pid, handle);
-    return (syscall_err_t) handle;
+    return SYSCALL_RET_VALUE(handle);
 }
 
-syscall_err_t syscall_sys_start(uint64_t process_handle_value, uint64_t entry) {
+syscall_ret_t syscall_sys_start(uint64_t process_handle_value, uint64_t entry) {
     handle_t process_handle = *(handle_t*) &process_handle_value;
     
     SYSCALL_ASSERT_HANDLE_TYPE(process_handle, HANDLE_TYPE_PROCESS);
@@ -49,7 +49,7 @@ syscall_err_t syscall_sys_start(uint64_t process_handle_value, uint64_t entry) {
     );
     
     if (!thread) {
-        return SYSCALL_ERR_OUT_OF_MEMORY;
+        return SYSCALL_RET_ERROR(SYSCALL_ERR_OUT_OF_MEMORY);
     }
     
     process_add_thread(target_process, thread);
@@ -58,5 +58,5 @@ syscall_err_t syscall_sys_start(uint64_t process_handle_value, uint64_t entry) {
     printf("Started process %d at entry=0x%llx\n",
            target_process->pid, entry);
     
-    return 0;
+    return SYSCALL_RET_VALUE(0);
 }

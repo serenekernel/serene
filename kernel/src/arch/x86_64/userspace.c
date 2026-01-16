@@ -17,12 +17,12 @@
 
 void __handle_syscall();
 
-typedef syscall_err_t (*fn_syscall_handler0_t)();
-typedef syscall_err_t (*fn_syscall_handler1_t)(uint64_t);
-typedef syscall_err_t (*fn_syscall_handler2_t)(uint64_t, uint64_t);
-typedef syscall_err_t (*fn_syscall_handler3_t)(uint64_t, uint64_t, uint64_t);
-typedef syscall_err_t (*fn_syscall_handler4_t)(uint64_t, uint64_t, uint64_t, uint64_t);
-typedef syscall_err_t (*fn_syscall_handler5_t)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
+typedef syscall_ret_t (*fn_syscall_handler0_t)();
+typedef syscall_ret_t (*fn_syscall_handler1_t)(uint64_t);
+typedef syscall_ret_t (*fn_syscall_handler2_t)(uint64_t, uint64_t);
+typedef syscall_ret_t (*fn_syscall_handler3_t)(uint64_t, uint64_t, uint64_t);
+typedef syscall_ret_t (*fn_syscall_handler4_t)(uint64_t, uint64_t, uint64_t, uint64_t);
+typedef syscall_ret_t (*fn_syscall_handler5_t)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
 
 typedef struct {
     size_t num_params;
@@ -59,11 +59,11 @@ const char* convert_syscall_number(syscall_nr_t nr) {
     }
 }
 
-const char* convert_syscall_error(syscall_err_t err) {
-    if(err >= 0) {
+const char* convert_syscall_ret(syscall_ret_t ret) {
+    if(ret.is_error == false) {
         return "SUCCESS";
     }
-    switch(err) {
+    switch(ret.err) {
         case SYSCALL_ERR_INVALID_ARGUMENT:  return "SYSCALL_ERR_INVALID_ARGUMENT";
         case SYSCALL_ERR_INVALID_SYSCALL:   return "SYSCALL_ERR_INVALID_SYSCALL";
         case SYSCALL_ERR_INVALID_HANDLE:    return "SYSCALL_ERR_INVALID_HANDLE";
@@ -75,16 +75,16 @@ const char* convert_syscall_error(syscall_err_t err) {
     }
 }
 
-syscall_err_t syscall_sys_invalid(uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4) {
+syscall_ret_t syscall_sys_invalid(uint64_t arg0, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4) {
     (void) arg0;
     (void) arg1;
     (void) arg2;
     (void) arg3;
     (void) arg4;
-    return SYSCALL_ERR_INVALID_SYSCALL;
+    return SYSCALL_RET_ERROR(SYSCALL_ERR_INVALID_SYSCALL);
 }
 
-syscall_err_t dispatch_syscall(syscall_nr_t syscall_nr, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4, uint64_t arg5) {
+syscall_ret_t dispatch_syscall(syscall_nr_t syscall_nr, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4, uint64_t arg5) {
     thread_t* thread = CPU_LOCAL_READ(current_thread);
 
     if(syscall_nr >= 256) {
@@ -98,10 +98,10 @@ syscall_err_t dispatch_syscall(syscall_nr_t syscall_nr, uint64_t arg1, uint64_t 
             arg3,
             arg4,
             arg5,
-            convert_syscall_error(SYSCALL_ERR_INVALID_SYSCALL),
+            convert_syscall_ret(SYSCALL_RET_ERROR(SYSCALL_ERR_INVALID_SYSCALL)),
             SYSCALL_ERR_INVALID_SYSCALL
         );
-        return SYSCALL_ERR_INVALID_SYSCALL;
+        return SYSCALL_RET_ERROR(SYSCALL_ERR_INVALID_SYSCALL);
     }
 
     syscall_entry_t entry = syscall_table[syscall_nr];
@@ -110,25 +110,25 @@ syscall_err_t dispatch_syscall(syscall_nr_t syscall_nr, uint64_t arg1, uint64_t 
     switch(entry.num_params) {
         case 0: {
             printf("[systrace] %d:%d - (0x%llx) %s()\n", thread->thread_common.process->pid, thread->thread_common.tid, syscall_nr, convert_syscall_number(syscall_nr));
-            syscall_err_t x = entry.handlers.handler0();
-            printf("[systrace, res] %d:%d - (0x%llx) %s() = %s (0x%llx)\n", thread->thread_common.process->pid, thread->thread_common.tid, syscall_nr, convert_syscall_number(syscall_nr), convert_syscall_error(x), x);
+            syscall_ret_t x = entry.handlers.handler0();
+            printf("[systrace, res] %d:%d - (0x%llx) %s() = %s (0x%llx)\n", thread->thread_common.process->pid, thread->thread_common.tid, syscall_nr, convert_syscall_number(syscall_nr), convert_syscall_ret(x), x);
             return x;
         }
         case 1: {
             printf("[systrace] %d:%d - (0x%llx) %s(0x%llx)\n", thread->thread_common.process->pid, thread->thread_common.tid, syscall_nr, convert_syscall_number(syscall_nr), arg1);
-            syscall_err_t x = entry.handlers.handler1(arg1);
-            printf("[systrace, res] %d:%d - (0x%llx) %s(0x%llx) = %s (0x%llx)\n", thread->thread_common.process->pid, thread->thread_common.tid, syscall_nr, convert_syscall_number(syscall_nr), arg1, convert_syscall_error(x), x);
+            syscall_ret_t x = entry.handlers.handler1(arg1);
+            printf("[systrace, res] %d:%d - (0x%llx) %s(0x%llx) = %s (0x%llx)\n", thread->thread_common.process->pid, thread->thread_common.tid, syscall_nr, convert_syscall_number(syscall_nr), arg1, convert_syscall_ret(x), x);
             return x;
         }
         case 2: {
             printf("[systrace] %d:%d - (0x%llx) %s(0x%llx, 0x%llx)\n", thread->thread_common.process->pid, thread->thread_common.tid, syscall_nr, convert_syscall_number(syscall_nr), arg1, arg2);
-            syscall_err_t x = entry.handlers.handler2(arg1, arg2);
-            printf("[systrace, res] %d:%d - (0x%llx) %s(0x%llx, 0x%llx) = %s (0x%llx)\n", thread->thread_common.process->pid, thread->thread_common.tid, syscall_nr, convert_syscall_number(syscall_nr), arg1, arg2, convert_syscall_error(x), x);
+            syscall_ret_t x = entry.handlers.handler2(arg1, arg2);
+            printf("[systrace, res] %d:%d - (0x%llx) %s(0x%llx, 0x%llx) = %s (0x%llx)\n", thread->thread_common.process->pid, thread->thread_common.tid, syscall_nr, convert_syscall_number(syscall_nr), arg1, arg2, convert_syscall_ret(x), x);
             return x;
         }
         case 3: {
             printf("[systrace] %d:%d - (0x%llx) %s(0x%llx, 0x%llx, 0x%llx)\n", thread->thread_common.process->pid, thread->thread_common.tid, syscall_nr, convert_syscall_number(syscall_nr), arg1, arg2, arg3);
-            syscall_err_t x = entry.handlers.handler3(arg1, arg2, arg3);
+            syscall_ret_t x = entry.handlers.handler3(arg1, arg2, arg3);
             printf(
                 "[systrace, res] %d:%d - (0x%llx) %s(0x%llx, 0x%llx, 0x%llx) = %s (0x%llx)\n",
                 thread->thread_common.process->pid,
@@ -138,14 +138,14 @@ syscall_err_t dispatch_syscall(syscall_nr_t syscall_nr, uint64_t arg1, uint64_t 
                 arg1,
                 arg2,
                 arg3,
-                convert_syscall_error(x),
+                convert_syscall_ret(x),
                 x
             );
             return x;
         }
         case 4: {
             printf("[systrace, res] %d:%d - (0x%llx) %s(0x%llx, 0x%llx, 0x%llx, 0x%llx)\n", thread->thread_common.process->pid, thread->thread_common.tid, syscall_nr, convert_syscall_number(syscall_nr), arg1, arg2, arg3, arg4);
-            syscall_err_t x = entry.handlers.handler4(arg1, arg2, arg3, arg4);
+            syscall_ret_t x = entry.handlers.handler4(arg1, arg2, arg3, arg4);
             printf(
                 "[systrace, res] %d:%d - (0x%llx) %s(0x%llx, 0x%llx, 0x%llx, 0x%llx) = %s (0x%llx)\n",
                 thread->thread_common.process->pid,
@@ -156,14 +156,14 @@ syscall_err_t dispatch_syscall(syscall_nr_t syscall_nr, uint64_t arg1, uint64_t 
                 arg2,
                 arg3,
                 arg4,
-                convert_syscall_error(x),
+                convert_syscall_ret(x),
                 x
             );
             return x;
         }
         case 5: {
             printf("[systrace] %d:%d - (0x%llx) %s(0x%llx, 0x%llx, 0x%llx, 0x%llx, 0x%llx)\n", thread->thread_common.process->pid, thread->thread_common.tid, syscall_nr, convert_syscall_number(syscall_nr), arg1, arg2, arg3, arg4, arg5);
-            syscall_err_t x = entry.handlers.handler5(arg1, arg2, arg3, arg4, arg5);
+            syscall_ret_t x = entry.handlers.handler5(arg1, arg2, arg3, arg4, arg5);
             printf(
                 "[systrace, res] %d:%d - (0x%llx) %s(0x%llx, 0x%llx, 0x%llx, 0x%llx, 0x%llx) = %s (0x%llx)\n",
                 thread->thread_common.process->pid,
@@ -175,7 +175,7 @@ syscall_err_t dispatch_syscall(syscall_nr_t syscall_nr, uint64_t arg1, uint64_t 
                 arg3,
                 arg4,
                 arg5,
-                convert_syscall_error(x),
+                convert_syscall_ret(x),
                 x
             );
             return x;
@@ -188,24 +188,24 @@ syscall_err_t dispatch_syscall(syscall_nr_t syscall_nr, uint64_t arg1, uint64_t 
     syscall_table[nr].num_params = __num_params;                  \
     syscall_table[nr].handlers.handler##__num_params = __handler;
 
-syscall_err_t syscall_sys_exit(uint64_t exit_code);
+syscall_ret_t syscall_sys_exit(uint64_t exit_code);
 
-syscall_err_t syscall_sys_process_create_empty();
-syscall_err_t syscall_sys_start(uint64_t process_handle_value, uint64_t entry);
-syscall_err_t syscall_sys_memobj_create(uint64_t size, uint64_t perms);
-syscall_err_t syscall_sys_map(uint64_t process_handle_value, uint64_t memobj_handle_value, uint64_t vaddr, uint64_t perms, uint64_t flags);
-syscall_err_t syscall_sys_copy_to(uint64_t process_handle_value, uint64_t dst, uint64_t src, uint64_t size);
+syscall_ret_t syscall_sys_process_create_empty();
+syscall_ret_t syscall_sys_start(uint64_t process_handle_value, uint64_t entry);
+syscall_ret_t syscall_sys_memobj_create(uint64_t size, uint64_t perms);
+syscall_ret_t syscall_sys_map(uint64_t process_handle_value, uint64_t memobj_handle_value, uint64_t vaddr, uint64_t perms, uint64_t flags);
+syscall_ret_t syscall_sys_copy_to(uint64_t process_handle_value, uint64_t dst, uint64_t src, uint64_t size);
 
-syscall_err_t syscall_sys_cap_port_grant(uint64_t start_port, uint64_t num_ports);
-syscall_err_t syscall_sys_cap_ipc_discovery();
+syscall_ret_t syscall_sys_cap_port_grant(uint64_t start_port, uint64_t num_ports);
+syscall_ret_t syscall_sys_cap_ipc_discovery();
 
-syscall_err_t syscall_sys_wait_for(uint64_t handle_value);
+syscall_ret_t syscall_sys_wait_for(uint64_t handle_value);
 
-syscall_err_t syscall_sys_endpoint_create();
-syscall_err_t syscall_sys_endpoint_destroy(uint64_t handle_value);
-syscall_err_t syscall_sys_endpoint_send(uint64_t handle_value, uint64_t payload, uint64_t payload_length);
-syscall_err_t syscall_sys_endpoint_receive(uint64_t handle_value);
-syscall_err_t syscall_sys_endpoint_free_message(uint64_t message_ptr);
+syscall_ret_t syscall_sys_endpoint_create();
+syscall_ret_t syscall_sys_endpoint_destroy(uint64_t handle_value);
+syscall_ret_t syscall_sys_endpoint_send(uint64_t handle_value, uint64_t payload, uint64_t payload_length);
+syscall_ret_t syscall_sys_endpoint_receive(uint64_t handle_value);
+syscall_ret_t syscall_sys_endpoint_free_message(uint64_t message_ptr);
 
 void userspace_init() {
     uint64_t efer = __rdmsr(IA32_EFER);
