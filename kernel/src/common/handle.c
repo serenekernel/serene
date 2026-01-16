@@ -1,7 +1,6 @@
 #include <common/handle.h>
 #include <memory/memory.h>
 #include <lib/sparse_array.h>
-#include <assert.h>
 #include <stdint.h>
 
 sparse_array_t* handle_array = NULL;
@@ -9,6 +8,24 @@ uint64_t handle_next_id = 1; // 0 is invalid
 
 void handle_setup() {
     handle_array = sparse_array_create(sizeof(handle_meta_t), 1024 * sizeof(handle_meta_t));
+}
+
+bool check_handle(handle_t handle, thread_t* thread, handle_type_t expected_type) {
+    // -1 and 0 are always invalid
+    if(handle == 0 || handle == (uint64_t)-1) {
+        return false;
+    }
+    handle_meta_t* handle_meta = handle_get(handle);
+    if(!handle_meta || !handle_meta->valid) {
+        return false;
+    }
+    if(handle_meta->owner_thread != thread->thread_common.tid) {
+        return false;
+    }
+    if(expected_type != HANDLE_TYPE_INVALID && handle_meta->type != expected_type) {
+        return false;
+    }
+    return true;
 }
 
 handle_t handle_create(handle_type_t type, uint32_t owner_thread, uint8_t caps, void* ptr) {

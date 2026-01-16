@@ -6,6 +6,7 @@ typedef enum : uint64_t {
 
     SYS_PROCESS_CREATE_EMPTY = 16,
     SYS_START = 17,
+
     SYS_MEMOBJ_CREATE = 18,
     SYS_MAP = 19,
     SYS_COPY_TO = 20,
@@ -38,3 +39,29 @@ void userspace_init();
 
 const char* convert_syscall_number(syscall_nr_t nr);
 const char* convert_syscall_error(syscall_err_t err);
+
+#define SYSCALL_ASSERT_PARAM(cond)                           \
+    do {                                                     \
+        if(!(cond)) {                                        \
+            printf("syscall assertion failed: %s\n", #cond); \
+            return SYSCALL_ERR_INVALID_ARGUMENT;             \
+        }                                                    \
+    } while(0)
+
+#define SYSCALL_ASSERT_HANDLE(handle)                                      \
+    do {                                                                   \
+        thread_t* __current_thread = CPU_LOCAL_READ(current_thread);       \
+        if(!check_handle(handle, __current_thread, HANDLE_TYPE_INVALID)) { \
+            printf("syscall handle assertion failed: %s\n", #handle);      \
+            return SYSCALL_ERR_INVALID_HANDLE;                             \
+        }                                                                  \
+    } while(0)
+
+#define SYSCALL_ASSERT_HANDLE_TYPE(handle, type)                      \
+    do {                                                              \
+        thread_t* __current_thread = CPU_LOCAL_READ(current_thread);  \
+        if(!check_handle(handle, __current_thread, type)) {           \
+            printf("syscall handle assertion failed: %s\n", #handle); \
+            return SYSCALL_ERR_INVALID_HANDLE;                        \
+        }                                                             \
+    } while(0)

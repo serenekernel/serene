@@ -1,6 +1,6 @@
 #pragma once
-#include <assert.h>
 #include <stdint.h>
+#include <arch/thread.h>
 
 typedef enum : uint8_t {
     HANDLE_TYPE_INVALID = 0,
@@ -59,4 +59,4 @@ uint32_t handle_get_owner(handle_t handle);
 // THIS SHOULDN'T DO ANYTHING FANCY AS IT'S CALLED FROM sched.c
 bool handle_has_data(handle_t handle);
 
-    
+bool check_handle(handle_t handle, thread_t* thread, handle_type_t expected_type);
