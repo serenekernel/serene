@@ -1,13 +1,14 @@
-#include <arch/cpu_local.h>
 #include "common/ipi.h"
-#include <common/process.h>
-#include <common/cpu_local.h>
+
+#include <arch/cpu_local.h>
 #include <arch/hardware/lapic.h>
+#include <arch/internal/cr.h>
 #include <common/arch.h>
+#include <common/cpu_local.h>
 #include <common/interrupts.h>
+#include <common/process.h>
 #include <memory/vmm.h>
 #include <stdio.h>
-#include <arch/internal/cr.h>
 
 const char* name_table[22] = { "Divide Error",
                                "Debug Exception",
@@ -40,18 +41,50 @@ __attribute__((noreturn)) void arch_panic_int(interrupt_frame_t* frame) {
     int apic_id = lapic_get_id();
 
     if(frame->vector == 0x0E) {
-        int page_protection_violation = ((frame->error & 0b00000001) > 0);
-        int write_access = ((frame->error & 0b00000010) > 0);
-        int user_mode = ((frame->error & 0b00000100) > 0);
-        int reserved_bit = ((frame->error & 0b00001000) > 0);
-        int instruction_fetch = ((frame->error & 0b00010000) > 0);
-        int protection_key = ((frame->error & 0b00100000) > 0);
-        int shadow_stack = ((frame->error & 0b01000000) > 0);
-        int sgx = ((frame->error & 0b0100000000000000) > 0);
-        printf("Page fault @ 0x%016llx [ppv=%d, write=%d, ring3=%d, resv=%d, fetch=%d, pk=%d, ss=%d, sgx=%d, wp=%d, smap=%d]", __read_cr2(), page_protection_violation, write_access, user_mode, reserved_bit, instruction_fetch, protection_key, shadow_stack, sgx, arch_get_wp(), arch_get_uap());
+        uint8_t page_protection_violation = ((frame->error & (1 << 0)) > 0);
+        uint8_t write_access = ((frame->error & (1 << 1)) > 0);
+        uint8_t user_mode = ((frame->error & (1 << 2)) > 0);
+        uint8_t reserved_bit = ((frame->error & (1 << 3)) > 0);
+        uint8_t instruction_fetch = ((frame->error & (1 << 4)) > 0);
+        uint8_t protection_key = ((frame->error & (1 << 5)) > 0);
+        uint8_t shadow_stack = ((frame->error & (1 << 6)) > 0);
+        uint8_t sgx = ((frame->error & (1 << 15)) > 0);
+        printf(
+            "Page fault @ 0x%016llx [ppv=%d, write=%d, ring3=%d, resv=%d, fetch=%d, pk=%d, ss=%d, sgx=%d, wp=%d, smap=%d]\n",
+            __read_cr2(),
+            page_protection_violation,
+            write_access,
+            user_mode,
+            reserved_bit,
+            instruction_fetch,
+            protection_key,
+            shadow_stack,
+            sgx,
+            arch_get_wp(),
+            arch_get_uap()
+        );
+
+        if(reserved_bit) {
+            printf("Reserved bit in page table entry\n");
+        } if(protection_key) {
+            printf("Protection key violation\n");
+        } else {
+            const char* who = user_mode ? "User Process" : "Kernel";
+            const char* access = write_access ? "write" : "read";
+            if(instruction_fetch) {
+                access = "execute";
+            }
+            const char* reason = page_protection_violation ? "non-writeable" : "non-present";
+            
+            if(instruction_fetch) {
+                reason = "non-executable";
+            }
+
+            printf("%s tried to %s a %s page\n", who, access, reason);
+        }
     } else if(frame->vector == 0x0D) {
         if(frame->error == 0) {
-            printf("General Protection Fault (0x%x | no error code)", frame->vector);
+            printf("General Protection Fault (0x%x | no error code)\n", frame->vector);
         } else {
             printf("General Protection Fault (0x%x | 0x%lx)", frame->vector, frame->error);
             if(frame->error & 0x1) {
@@ -64,18 +97,19 @@ __attribute__((noreturn)) void arch_panic_int(interrupt_frame_t* frame) {
             } else {
                 printf(" [gdt]");
             }
-            printf(" [index=0x%x]", (frame->error & 0xFFF8) >> 4);
+            printf(" [index=0x%x)\n", (frame->error & 0xFFF8) >> 4);
         }
     } else if(frame->vector <= 21) {
-        printf("%s (0x%x | %d)", name_table[frame->vector], frame->vector, frame->error);
+        printf("%s (0x%x | %d)\n", name_table[frame->vector], frame->vector, frame->error);
     } else {
-        printf("unknown (0x%x | %d)", frame->vector, frame->error);
+        printf("unknown (0x%x | %d)\n", frame->vector, frame->error);
     }
-    printf(" on core %d in ring %d\n", apic_id, (frame->cs & 0b11));
+    printf("Core: %d | Ring: %d\n", apic_id, (frame->cs & 0b11));
     if((frame->cs & 0b11) == 3) {
         thread_t* current_thread = CPU_LOCAL_READ(current_thread);
         printf("In userspace process %d:%d\n", current_thread->thread_common.process->pid, current_thread->thread_common.tid);
     }
+    printf("\n");
     printf("rax = 0x%016llx, rbx = 0x%016llx\n", frame->rax, frame->rbx);
     printf("rcx = 0x%016llx, rdx = 0x%016llx\n", frame->rcx, frame->rdx);
     printf("rsi = 0x%016llx, rdi = 0x%016llx\n", frame->rsi, frame->rdi);
