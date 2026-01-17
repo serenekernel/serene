@@ -41,15 +41,18 @@ syscall_ret_t syscall_sys_endpoint_send(uint64_t handle_value, uint64_t payload,
     thread_t* thread = CPU_LOCAL_READ(current_thread);
 
     ENTER_UAP_SECTION();
+    ENTER_WP_SECTION()
+    ENTER_ADDRESS_SWITCH();
+
     vm_address_space_switch(endpoint->owner->thread_common.address_space);
     message_t* message = (message_t*) vmm_alloc_object(endpoint->owner->thread_common.address_space, sizeof(message_t) + payload_length);
     message->length = (uint32_t) payload_length;
     message->type = 0;
-    message->flags = 0;
+message->flags = 0;
     message->reply_handle = -1;
-    vm_address_space_switch(thread->thread_common.address_space);
-    ENTER_WP_SECTION()
     memcpy_um_um(endpoint->owner->thread_common.address_space, thread->thread_common.address_space, (virt_addr_t) message->payload, (virt_addr_t) payload, payload_length);
+
+    EXIT_ADDRESS_SWITCH();
     EXIT_WP_SECTION();
     EXIT_UAP_SECTION()
 
