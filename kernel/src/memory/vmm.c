@@ -160,6 +160,20 @@ virt_addr_t vmm_alloc_object(vm_allocator_t* allocator, size_t object_size) {
     return vmm_alloc_backed(allocator, page_count, access, VM_CACHE_NORMAL, VM_READ_WRITE, true);
 }
 
+// @note: this allows source pages to be changed after copying
+// that's on the caller to ensure that doesn't happen :P
+virt_addr_t vmm_copy_read_only(vm_allocator_t* dest_alloc, vm_allocator_t* src_alloc, virt_addr_t dest, virt_addr_t src, size_t size) {
+    size_t page_count = ALIGN_UP(size, PAGE_SIZE_DEFAULT) / PAGE_SIZE_DEFAULT;
+
+    for(size_t i = 0; i < page_count; i++) {
+        phys_addr_t src_phys = vm_resolve(src_alloc, src + (i * PAGE_SIZE_DEFAULT));
+        assert(src_phys != 0 && "vmm_copy_read_only: source address not mapped");
+        vm_map_page(dest_alloc, dest + (i * PAGE_SIZE_DEFAULT), src_phys, dest_alloc->is_user ? VM_ACCESS_USER : VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_ONLY);
+    }
+
+    return dest;
+}
+
 void vmm_free(vm_allocator_t* allocator, virt_addr_t addr) {
     rb_node_t* node = rb_find_exact(&allocator->vm_tree, addr);
     if(node) {

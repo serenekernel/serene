@@ -55,6 +55,8 @@ virt_addr_t vmm_alloc_backed(vm_allocator_t* allocator, size_t page_count, vm_ac
 virt_addr_t vmm_try_alloc_backed(vm_allocator_t* allocator, virt_addr_t address, size_t page_count, vm_access_t access, vm_cache_t cache, vm_flags_t flags, bool zero_fill);
 virt_addr_t vmm_alloc_object(vm_allocator_t* allocator, size_t object_size);
 
+virt_addr_t vmm_copy_read_only(vm_allocator_t* dest_alloc, vm_allocator_t* src_alloc, virt_addr_t dest, virt_addr_t src, size_t size);
+
 void vmm_free(vm_allocator_t* allocator, virt_addr_t addr);
 
 void vm_map_page(vm_allocator_t* allocator, virt_addr_t virt_addr, phys_addr_t phys_addr, vm_access_t access, vm_cache_t cache, vm_flags_t flags);
