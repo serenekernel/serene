@@ -14,8 +14,9 @@ typedef enum : uint64_t {
 
     SYS_CAP_PORT_GRANT = 32,
 
-    // @todo: this absolutely 100% should not be a system call if we can help it
+    // @todo: these 2 absolutely 100% should not be system calls if we can help it
     SYS_CAP_IPC_DISCOVERY = 33,
+    SYS_CAP_INITRAMFS = 34,
 
     SYS_WAIT_FOR = 48,
 

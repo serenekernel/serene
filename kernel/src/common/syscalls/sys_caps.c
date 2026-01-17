@@ -1,3 +1,6 @@
+#include "memory/memory.h"
+#include "memory/vmm.h"
+#include <common/requests.h>
 #include <arch/cpu_local.h>
 #include <common/userspace.h>
 #include <memory/memobj.h>
@@ -32,4 +35,24 @@ syscall_ret_t syscall_sys_cap_ipc_discovery() {
     handle_t our_handle = handle_dup(target);
     handle_set_owner(our_handle, thread->thread_common.tid);
     return SYSCALL_RET_VALUE(our_handle);
+}
+
+syscall_ret_t syscall_sys_cap_initramfs() {    
+    static void* initramfs = nullptr;
+    static size_t initramfs_size = 0;
+    if(initramfs == nullptr || initramfs_size == 0) {
+        for(size_t i = 0; i < module_request.response->module_count; i++) {
+            // @note: this is our initramfs for now :P
+            if (strcmp(module_request.response->modules[i]->string, "elf-test-module") == 0) {
+                initramfs = (void*) module_request.response->modules[i]->address;
+                initramfs_size = module_request.response->modules[i]->size;
+            }
+        }
+    }
+
+    // @note: this sucks
+    thread_t* thread = CPU_LOCAL_READ(current_thread);
+    virt_addr_t virt = vmm_alloc(thread->thread_common.process->address_space, ALIGN_UP(initramfs_size, PAGE_SIZE_DEFAULT) / PAGE_SIZE_DEFAULT);
+    vmm_copy_read_only(thread->thread_common.process->address_space, &kernel_allocator, virt, (virt_addr_t) initramfs, initramfs_size);
+    return SYSCALL_RET_VALUE(virt);
 }

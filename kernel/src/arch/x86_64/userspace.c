@@ -198,6 +198,7 @@ syscall_ret_t syscall_sys_copy_to(uint64_t process_handle_value, uint64_t dst, u
 
 syscall_ret_t syscall_sys_cap_port_grant(uint64_t start_port, uint64_t num_ports);
 syscall_ret_t syscall_sys_cap_ipc_discovery();
+syscall_ret_t syscall_sys_cap_initramfs();
 
 syscall_ret_t syscall_sys_wait_for(uint64_t handle_value);
 
@@ -232,7 +233,9 @@ void userspace_init() {
     SYSCALL_DISPATCHER(SYS_COPY_TO, syscall_sys_copy_to, 4);
 
     SYSCALL_DISPATCHER(SYS_CAP_PORT_GRANT, syscall_sys_cap_port_grant, 2);
+    
     SYSCALL_DISPATCHER(SYS_CAP_IPC_DISCOVERY, syscall_sys_cap_ipc_discovery, 0);
+    SYSCALL_DISPATCHER(SYS_CAP_INITRAMFS, syscall_sys_cap_initramfs, 0);
 
     SYSCALL_DISPATCHER(SYS_WAIT_FOR, syscall_sys_wait_for, 1);
 
