@@ -24,13 +24,9 @@ memobj_t* memobj_create(size_t size, memobj_perms_t perms) {
     size_t aligned_size = ALIGN_UP(size, PAGE_SIZE_DEFAULT);
     size_t page_count = aligned_size / PAGE_SIZE_DEFAULT;
 
-    memobj_t* memobj = (memobj_t*) vmm_alloc_backed(
+    memobj_t* memobj = (memobj_t*) vmm_alloc_object(
         &kernel_allocator,
-        ALIGN_UP(sizeof(memobj_t), PAGE_SIZE_DEFAULT) / PAGE_SIZE_DEFAULT,
-        VM_ACCESS_KERNEL,
-        VM_CACHE_NORMAL,
-        VM_READ_WRITE,
-        true
+        sizeof(memobj_t)
     );
     
     if (!memobj) {
@@ -39,13 +35,9 @@ memobj_t* memobj_create(size_t size, memobj_perms_t perms) {
     }
 
     size_t pages_array_size = page_count * sizeof(phys_addr_t);
-    memobj->physical_pages = (phys_addr_t*) vmm_alloc_backed(
+    memobj->physical_pages = (phys_addr_t*) vmm_alloc_object(
         &kernel_allocator,
-        ALIGN_UP(pages_array_size, PAGE_SIZE_DEFAULT) / PAGE_SIZE_DEFAULT,
-        VM_ACCESS_KERNEL,
-        VM_CACHE_NORMAL,
-        VM_READ_WRITE,
-        true
+        pages_array_size
     );
 
     if (!memobj->physical_pages) {

@@ -1,12 +1,14 @@
 #pragma once
 #include <stddef.h>
 #include <arch/internal/gdt.h>
+#include <common/sched.h>
 
 typedef struct thread thread_t;
 
 typedef struct {
     thread_t* current_thread;
     tss_t* cpu_tss;
+    scheduler_t* cpu_scheduler;
 } kernel_cpu_local_t;
 
 #define CPU_LOCAL_READ(field)                                                         \

@@ -19,8 +19,8 @@
 #include <stdint.h>
 
 spinlock_t g_sched_lock = 0;
-scheduler_t g_scheduler;
 extern process_t* g_proc_head;
+thread_t* g_reaper_thread;
 
 void idle_thread() {
     while(1) {
@@ -33,7 +33,7 @@ void reaper_thread() {
         uint64_t __spin_flags = spinlock_critical_lock(&g_sched_lock);
         {
             thread_t* prev = nullptr;
-            thread_t* current = g_scheduler.thread_head;
+            thread_t* current = CPU_LOCAL_READ(cpu_scheduler)->thread_head;
 
             while(current != nullptr) {
                 if(current->thread_common.happy_to_die) {
@@ -52,8 +52,8 @@ void reaper_thread() {
                         prev->sched_next = current->sched_next;
                         current = (thread_t*) current->sched_next;
                     } else {
-                        g_scheduler.thread_head = (thread_t*) current->sched_next;
-                        current = g_scheduler.thread_head;
+                        CPU_LOCAL_READ(cpu_scheduler)->thread_head = (thread_t*) current->sched_next;
+                        current = CPU_LOCAL_READ(cpu_scheduler)->thread_head;
                     }
 
                     printf("to_reap->thread_rsp: 0x%llx\n", to_reap->thread_rsp);
@@ -107,7 +107,7 @@ static uint32_t next_tid = 1;
 extern void __jump_to_idle_thread(virt_addr_t stack_ptr, virt_addr_t entry_point);
 
 thread_t* __sched_get_thread(uint32_t tid) {
-    thread_t* current = g_scheduler.thread_head;
+    thread_t* current = CPU_LOCAL_READ(cpu_scheduler)->thread_head;
     while(current != nullptr) {
         if(current->thread_common.tid == tid) {
             return current;
@@ -129,30 +129,33 @@ void sched_arch_init_bsp();
 
 void sched_init_bsp() {
     g_sched_lock = 0;
-    g_scheduler.idle_thread = sched_thread_kernel_init((virt_addr_t) idle_thread);
-    g_scheduler.idle_thread->thread_common.tid = 1;
-
-    g_scheduler.reaper_thread = sched_thread_kernel_init((virt_addr_t) reaper_thread);
-
-    g_scheduler.thread_head = g_scheduler.idle_thread;
-    g_scheduler.thread_head->sched_next = (struct thread*) g_scheduler.reaper_thread;
-    printf("Scheduler initialized with idle thread TID %u and reaper thread TID %u\n", g_scheduler.idle_thread->thread_common.tid, g_scheduler.reaper_thread->thread_common.tid);
-    CPU_LOCAL_WRITE(current_thread, g_scheduler.idle_thread);
 
     sched_arch_init_bsp();
-}
-
-void sched_start() {
-    g_scheduler.idle_thread->thread_common.status = THREAD_STATUS_RUNNING;
-
-    lapic_timer_oneshot_ms(10);
-    __jump_to_idle_thread(g_scheduler.idle_thread->kernel_rsp, (virt_addr_t) idle_thread);
-
-    __builtin_unreachable();
+    sched_init_ap();
 }
 
 void sched_init_ap() {
-    CPU_LOCAL_WRITE(current_thread, g_scheduler.idle_thread);
+    scheduler_t* sched = (scheduler_t*) vmm_alloc_object(&kernel_allocator, sizeof(scheduler_t));
+    
+    sched->idle_thread = sched_thread_kernel_init((virt_addr_t) idle_thread);
+    sched->idle_thread->thread_common.tid = 1;
+
+    g_reaper_thread = sched_thread_kernel_init((virt_addr_t) reaper_thread);
+
+    sched->thread_head = sched->idle_thread;
+    sched->thread_head->sched_next = (struct thread*) g_reaper_thread;
+    printf("Scheduler initialized with idle thread TID %u and reaper thread TID %u\n", sched->idle_thread->thread_common.tid, g_reaper_thread->thread_common.tid);
+    CPU_LOCAL_WRITE(cpu_scheduler, sched);
+    CPU_LOCAL_WRITE(current_thread, sched->idle_thread);
+}
+
+void sched_start() {
+    CPU_LOCAL_READ(cpu_scheduler)->idle_thread->thread_common.status = THREAD_STATUS_RUNNING;
+
+    lapic_timer_oneshot_ms(10);
+    __jump_to_idle_thread(CPU_LOCAL_READ(cpu_scheduler)->idle_thread->kernel_rsp, (virt_addr_t) idle_thread);
+
+    __builtin_unreachable();
 }
 
 void __context_switch(thread_t* old_thread, thread_t* new_thread, thread_status_t old_thread_status);
@@ -204,7 +207,7 @@ thread_t* find_next_thread() {
     while(true) {
         current_thread = (thread_t*) current_thread->sched_next;
         if(current_thread == nullptr) {
-            current_thread = g_scheduler.thread_head;
+            current_thread = CPU_LOCAL_READ(cpu_scheduler)->thread_head;
         }
         if(current_thread->thread_common.status == THREAD_STATUS_READY) {
             if(current_thread->thread_common.happy_to_die) {
@@ -264,11 +267,11 @@ void sched_yield_status(thread_status_t new_status) {
 void sched_add_thread(thread_t* thread) {
     uint64_t __spin_flag = spinlock_critical_lock(&g_sched_lock);
 
-    if(g_scheduler.thread_head == nullptr) {
-        g_scheduler.thread_head = thread;
+    if(CPU_LOCAL_READ(cpu_scheduler)->thread_head == nullptr) {
+        CPU_LOCAL_READ(cpu_scheduler)->thread_head = thread;
         thread->sched_next = nullptr;
     } else {
-        thread_t* current = g_scheduler.thread_head;
+        thread_t* current = CPU_LOCAL_READ(cpu_scheduler)->thread_head;
         while(current->sched_next != nullptr) {
             current = (thread_t*) current->sched_next;
         }
@@ -303,10 +306,10 @@ void sched_wake_thread_id(uint32_t thread) {
 void sched_remove_thread(thread_t* thread) {
     uint64_t __spin_flag = spinlock_critical_lock(&g_sched_lock);
 
-    if(g_scheduler.thread_head == thread) {
-        g_scheduler.thread_head = (thread_t*) thread->sched_next;
+    if(CPU_LOCAL_READ(cpu_scheduler)->thread_head == thread) {
+        CPU_LOCAL_READ(cpu_scheduler)->thread_head = (thread_t*) thread->sched_next;
     } else {
-        thread_t* current = g_scheduler.thread_head;
+        thread_t* current = CPU_LOCAL_READ(cpu_scheduler)->thread_head;
         while(current != nullptr && current->sched_next != (struct thread*) thread) {
             current = (thread_t*) current->sched_next;
         }

@@ -4,7 +4,6 @@
 
 typedef struct {
     thread_t* idle_thread;
-    thread_t* reaper_thread;
     thread_t* thread_head;
 } scheduler_t;
 

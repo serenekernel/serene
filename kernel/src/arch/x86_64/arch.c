@@ -21,6 +21,7 @@
 #include <limine.h>
 #include <memory/pagedb.h>
 #include <memory/pmm.h>
+#include <stdatomic.h>
 #include <memory/vmm.h>
 #include <memory/memobj.h>
 #include <sparse_array.h>
@@ -167,6 +168,7 @@ void ps2_test(interrupt_frame_t*) {
 }
 
 static spinlock_t arch_ap_init_lock = {};
+static uint32_t arch_ap_count = 0;
 
 void thread_a() {
     int i = 0;
@@ -211,9 +213,16 @@ void arch_init_bsp() {
         }
 
         printf("Starting AP with lapic id %u\n", mp_request.response->cpus[i]->lapic_id);
-        // mp_request.response->cpus[i]->goto_address = &arch_init_ap;
+        mp_request.response->cpus[i]->goto_address = &arch_init_ap;
     }
 
+    printf("Waiting for APs to boot...\n");
+    while(true) {
+        if(atomic_load(&arch_ap_count) + 1 >= mp_request.response->cpu_count) {
+            break;
+        }
+        arch_pause();
+    }
 
     sched_init_bsp();
     handle_setup();
@@ -240,31 +249,33 @@ void arch_init_bsp() {
 
     // Jump to the idle thread - this never returns
     sched_start();
+    __builtin_unreachable();
 }
 
 void arch_init_ap(struct limine_mp_info* info) {
     (void) info;
-    spinlock_lock(&arch_ap_init_lock);
     vm_paging_ap_init(&kernel_allocator);
     printf("ap paging pray\n");
     vm_address_space_switch(&kernel_allocator);
     printf("ap didn't kill itself\n");
-
+    
+    spinlock_lock(&arch_ap_init_lock);
     init_cpu_local();
     setup_gdt();
     ipi_init_ap();
+    spinlock_unlock(&arch_ap_init_lock);
+
     setup_interrupts_ap();
     lapic_init_ap();
     fpu_init_ap();
-    spinlock_unlock(&arch_ap_init_lock);
-
+    
     enable_interrupts();
     sched_init_ap();
 
-    while(1) {
-        printf("[AP idle loop]\n");
-        sched_yield();
-    }
+    atomic_fetch_add(&arch_ap_count, 1);
+
+    sched_start();
+    __builtin_unreachable();
 }
 
 void arch_wait_for_interrupt(void) {
