@@ -40,26 +40,37 @@ __context_switch:
 ; void __userspace_init();
 global __userspace_init
 __userspace_init:
-    pop rcx ; address to sysret
     cli
     swapgs
 
+    ; setup fpu
+    
+    ; INTEL WHY DID YOU MAKE THIS TAKE A MEMORY OPERAND ONLY
+    mov rcx, (1 << 0) | (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 5) | (0b11 << 8)
+    push rcx 
+    fldcw [rsp]
+
+    mov rcx, (1 << 7) | (1 << 8) | (1 << 9) | (1 << 10) | (1 << 11) | (1 << 12)
+    push rcx
+    ldmxcsr [rsp]
+
+    ; clean up fpu setup stack
+    add rsp, 16
+
+    pop rcx ; address to sysret to
     pop rax ; userspace stack pointer
     mov rsp, rax
 
+    ; bye bye regs
+    ; @note: we don't bother clearing rbx, rbp, r12, r13, r14, r15 
+    ; because they should be cleared by the context switch
     xor rax, rax
-    xor rbx, rbx
 	xor rdx, rdx
 	xor rsi, rsi
 	xor rdi, rdi
 	xor r8, r8
 	xor r9, r9
 	xor r10, r10
-	xor r12, r12
-	xor r13, r13
-	xor r14, r14
-	xor r15, r15
-    xor rbp, rbp
 
     mov r11, 0x202 ; interrupts enabled
     o64 sysret

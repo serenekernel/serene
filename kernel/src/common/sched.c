@@ -159,7 +159,6 @@ void __context_switch(thread_t* old_thread, thread_t* new_thread, thread_status_
 void __userspace_init();
 
 void sched_arch_init_thread(thread_t* thread, virt_addr_t entry_point);
-void sched_arch_thread_fpu_init(thread_t* thread);
 
 thread_t* sched_thread_common_init(vm_allocator_t* address_space, virt_addr_t entry_point) {
     size_t obj_size = sizeof(thread_t);
@@ -184,12 +183,6 @@ thread_t* sched_thread_common_init(vm_allocator_t* address_space, virt_addr_t en
     thread->thread_rsp = vmm_alloc_backed(address_space, 4, (address_space->is_user ? VM_ACCESS_USER : VM_ACCESS_KERNEL), VM_CACHE_NORMAL, VM_READ_WRITE, true) + (4 * PAGE_SIZE_DEFAULT);
     thread->kernel_rsp = vmm_alloc_backed(&kernel_allocator, 4, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true) + (4 * PAGE_SIZE_DEFAULT);
     thread->syscall_rsp = 0;
-
-    if(address_space->is_user) {
-        sched_arch_thread_fpu_init(thread);
-    } else {
-        thread->fpu_area = nullptr;
-    }
 
     sched_arch_init_thread(thread, entry_point);
 

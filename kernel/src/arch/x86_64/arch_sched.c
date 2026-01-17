@@ -56,23 +56,6 @@ void sched_arch_init_bsp() {
 }
 
 
-void sched_arch_thread_fpu_init(thread_t* thread) {
-    bool __irq = interrupts_enabled();
-    disable_interrupts();
-
-    thread_t* current_thread = CPU_LOCAL_READ(current_thread);
-    if(current_thread != nullptr && current_thread->fpu_area != nullptr) fpu_save(current_thread->fpu_area);
-    fpu_load(thread->fpu_area);
-    uint16_t x87cw = (1 << 0) | (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 5) | (0b11 << 8);
-    asm volatile("fldcw %0" : : "m"(x87cw) : "memory");
-    uint32_t mxcsr = (1 << 7) | (1 << 8) | (1 << 9) | (1 << 10) | (1 << 11) | (1 << 12);
-    asm volatile("ldmxcsr %0" : : "m"(mxcsr) : "memory");
-    fpu_save(thread->fpu_area);
-    if(current_thread != nullptr && current_thread->fpu_area != nullptr) fpu_load(current_thread->fpu_area);
-
-    if(__irq) enable_interrupts();
-}
-
 void sched_arch_init_thread(thread_t* thread, virt_addr_t entry_point) {
     if(thread->thread_common.address_space->is_user) {
         userspace_init_frame_t* frame = (userspace_init_frame_t*)(thread->kernel_rsp - sizeof(userspace_init_frame_t));

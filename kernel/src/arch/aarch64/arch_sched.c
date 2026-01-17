@@ -7,11 +7,6 @@ void sched_arch_init_bsp() {
     assert(false && "unimplemented");
 }
 
-void sched_arch_thread_fpu_init(thread_t* thread) {
-    (void)thread;
-    assert(false && "unimplemented");
-}
-
 void sched_arch_init_thread(thread_t* thread, virt_addr_t entry_point) {
     (void)thread;
     (void)entry_point;
