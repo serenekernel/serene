@@ -36,9 +36,7 @@ __handle_syscall:
     ; but syscall clobbers rcx so we make usermode programs deal with amd's bullshit
     mov rcx, r10
 
-    sti
     call dispatch_syscall
-    cli
 
     xor r12, r12
     mov r12, ds
