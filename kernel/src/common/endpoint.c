@@ -20,7 +20,7 @@ handle_free_t endpoint_free = __endpoint_free;
 
 
 endpoint_t* endpoint_create(thread_t* owner, uint16_t queue_length) {
-    endpoint_t* endpoint = (endpoint_t*) vmm_alloc_kernel_object(&kernel_allocator, sizeof(endpoint_t) + (sizeof(message_t*) * queue_length));
+    endpoint_t* endpoint = (endpoint_t*) vmm_alloc_object(&kernel_allocator, sizeof(endpoint_t) + (sizeof(message_t*) * queue_length));
     endpoint->recv_head = 0;
     endpoint->recv_tail = 0;
     endpoint->recv_queue_length = queue_length;

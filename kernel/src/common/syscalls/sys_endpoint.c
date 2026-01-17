@@ -42,7 +42,7 @@ syscall_ret_t syscall_sys_endpoint_send(uint64_t handle_value, uint64_t payload,
 
     ENTER_UAP_SECTION();
     vm_address_space_switch(endpoint->owner->thread_common.address_space);
-    message_t* message = (message_t*) vmm_alloc_user_object(endpoint->owner->thread_common.address_space, sizeof(message_t) + payload_length);
+    message_t* message = (message_t*) vmm_alloc_object(endpoint->owner->thread_common.address_space, sizeof(message_t) + payload_length);
     message->length = (uint32_t) payload_length;
     message->type = 0;
     message->flags = 0;

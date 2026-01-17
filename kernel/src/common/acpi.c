@@ -50,7 +50,7 @@ void acpi_init(void) {
     printf("ACPI has %u tables\n", number_of_tables);
     printf("%u\n", sizeof(acpi_tables_t) + (sizeof(uintptr_t) * number_of_tables));
 
-    acpi_tables_t* tables = (acpi_tables_t*)vmm_alloc_kernel_object(&kernel_allocator, sizeof(acpi_tables_t) + (sizeof(uintptr_t) * number_of_tables));
+    acpi_tables_t* tables = (acpi_tables_t*)vmm_alloc_object(&kernel_allocator, sizeof(acpi_tables_t) + (sizeof(uintptr_t) * number_of_tables));
     tables->acpi_revision = xsdp->revision;
     tables->number_of_tables = number_of_tables;
     g_tables = tables;

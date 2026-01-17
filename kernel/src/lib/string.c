@@ -111,7 +111,7 @@ void memcpy_um_um(vm_allocator_t* dest_alloc, vm_allocator_t* src_alloc, virt_ad
 
     vm_address_space_switch(src_alloc);
     
-    virt_addr_t kernel_buffer = vmm_alloc_kernel_object(&kernel_allocator, n);
+    virt_addr_t kernel_buffer = vmm_alloc_object(&kernel_allocator, n);
     memcpy((void*) kernel_buffer, (void*) src, n);
 
     vm_address_space_switch(dest_alloc);
