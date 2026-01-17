@@ -49,12 +49,15 @@ const char* convert_syscall_number(syscall_nr_t nr) {
         case SYS_COPY_TO:               return "SYS_COPY_TO";
         case SYS_CAP_PORT_GRANT:        return "SYS_CAP_PORT_GRANT";
         case SYS_CAP_IPC_DISCOVERY:     return "SYS_CAP_IPC_DISCOVERY";
+        case SYS_CAP_INITRAMFS:         return "SYS_CAP_INITRAMFS";
         case SYS_WAIT_FOR:              return "SYS_WAIT_FOR";
         case SYS_ENDPOINT_CREATE:       return "SYS_ENDPOINT_CREATE";
         case SYS_ENDPOINT_DESTROY:      return "SYS_ENDPOINT_DESTROY";
         case SYS_ENDPOINT_SEND:         return "SYS_ENDPOINT_SEND";
         case SYS_ENDPOINT_RECEIVE:      return "SYS_ENDPOINT_RECEIVE";
         case SYS_ENDPOINT_FREE_MESSAGE: return "SYS_ENDPOINT_FREE_MESSAGE";
+        case SYS_MEM_ALLOC:             return "SYS_MEM_ALLOC";
+        case SYS_MEM_FREE:              return "SYS_MEM_FREE";
         default:                        return "UNKNOWN_SYSCALL";
     }
 }
@@ -208,6 +211,9 @@ syscall_ret_t syscall_sys_endpoint_send(uint64_t handle_value, uint64_t payload,
 syscall_ret_t syscall_sys_endpoint_receive(uint64_t handle_value);
 syscall_ret_t syscall_sys_endpoint_free_message(uint64_t message_ptr);
 
+syscall_ret_t syscall_sys_mem_alloc(uint64_t size, uint64_t align, uint64_t perms);
+syscall_ret_t syscall_sys_mem_free(uint64_t addr);
+
 void userspace_init() {
     uint64_t efer = __rdmsr(IA32_EFER);
     efer |= (1 << 0);
@@ -244,4 +250,7 @@ void userspace_init() {
     SYSCALL_DISPATCHER(SYS_ENDPOINT_SEND, syscall_sys_endpoint_send, 3);
     SYSCALL_DISPATCHER(SYS_ENDPOINT_RECEIVE, syscall_sys_endpoint_receive, 1);
     SYSCALL_DISPATCHER(SYS_ENDPOINT_FREE_MESSAGE, syscall_sys_endpoint_free_message, 1);
+
+    SYSCALL_DISPATCHER(SYS_MEM_ALLOC, syscall_sys_mem_alloc, 3);
+    SYSCALL_DISPATCHER(SYS_MEM_FREE, syscall_sys_mem_free, 1);
 }

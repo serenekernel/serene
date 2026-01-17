@@ -24,9 +24,9 @@ LIMINE_REQUEST volatile struct limine_rsdp_request rsdp_request = {
     .revision = 0,
 };
 
-LIMINE_REQUEST volatile struct limine_internal_module elf_test = {
-    .path = "test.elf",
-    .string = "elf-test-module",
+LIMINE_REQUEST volatile struct limine_internal_module initramfs = {
+    .path = "initramfs.tar",
+    .string = "initramfs-module",
     .flags = LIMINE_INTERNAL_MODULE_REQUIRED,
 };
 
@@ -37,7 +37,7 @@ LIMINE_REQUEST volatile struct limine_internal_module init_system = {
 };
 
 LIMINE_REQUEST volatile struct limine_internal_module* modules[] = {
-    &elf_test,
+    &initramfs,
     &init_system
 };
 

@@ -184,12 +184,15 @@ virt_addr_t memobj_map(
         return 0;
     }
 
+    vm_node_t* node = NULL;
+    
     if (vaddr == 0) {
-        vaddr = vmm_alloc(allocator, memobj->page_count);
-        if (vaddr == 0) {
+        node = vmm_alloc_raw(allocator, memobj->page_count);
+        if (node == 0) {
             printf("memobj_map: failed to allocate virtual address space\n");
             return 0;
         }
+        vaddr = node->base;
     } else if (flags & MEMOBJ_MAP_FIXED) {
         virt_addr_t result = vmm_try_alloc_backed(
             allocator,
@@ -205,12 +208,21 @@ virt_addr_t memobj_map(
             return 0;
         }
         vaddr = result;
+
+        rb_node_t* rb = rb_find_exact(&allocator->vm_tree, vaddr);
+        node = (vm_node_t*) rb;
     } else {
-        vaddr = vmm_alloc(allocator, memobj->page_count);
-        if (vaddr == 0) {
+        node = vmm_alloc_raw(allocator, memobj->page_count);
+        if (!node) {
             printf("memobj_map: failed to allocate virtual address space\n");
             return 0;
         }
+        vaddr = node->base;
+    }
+
+    if (node) {
+        node->options_type = VM_OPTIONS_MEMOBJ;
+        node->options.memobj.memobj = memobj;
     }
 
     vm_flags_t vm_flags = memobj_perms_to_vm_flags(perms);
@@ -229,7 +241,6 @@ virt_addr_t memobj_map(
         );
     }
 
-    // Increment reference count
     memobj_ref(memobj);
 
     printf("Mapped memobj id=%llu to vaddr=0x%llx size=%zu perms=0x%x\n",

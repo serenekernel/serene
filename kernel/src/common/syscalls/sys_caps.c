@@ -43,7 +43,7 @@ syscall_ret_t syscall_sys_cap_initramfs() {
     if(initramfs == nullptr || initramfs_size == 0) {
         for(size_t i = 0; i < module_request.response->module_count; i++) {
             // @note: this is our initramfs for now :P
-            if (strcmp(module_request.response->modules[i]->string, "elf-test-module") == 0) {
+            if (strcmp(module_request.response->modules[i]->string, "initramfs-module") == 0) {
                 initramfs = (void*) module_request.response->modules[i]->address;
                 initramfs_size = module_request.response->modules[i]->size;
             }

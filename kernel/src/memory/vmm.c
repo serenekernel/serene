@@ -1,5 +1,6 @@
 #include "memory/memory.h"
 #include "memory/pmm.h"
+#include "memory/memobj.h"
 #include "rbtree.h"
 #include <assert.h>
 #include "sparse_array.h"
@@ -189,6 +190,18 @@ void vmm_free(vm_allocator_t* allocator, virt_addr_t addr) {
                 }
                 vm_unmap_page(allocator, vm_node->base + (i * PAGE_SIZE_DEFAULT));
                 pmm_free_page(phys);
+            }
+        } else if(vm_node->options_type == VM_OPTIONS_MEMOBJ) {
+            // for memobj mappings unmap pages but don't free physical memory
+            // the memobj owns the physical pages
+            size_t page_count = vm_node->size / PAGE_SIZE_DEFAULT;
+            for(size_t i = 0; i < page_count; i++) {
+                vm_unmap_page(allocator, vm_node->base + (i * PAGE_SIZE_DEFAULT));
+            }
+            
+            memobj_t* memobj = vm_node->options.memobj.memobj;
+            if(memobj) {
+                memobj_unref(memobj);
             }
         }
 

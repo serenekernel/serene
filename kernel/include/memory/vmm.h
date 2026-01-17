@@ -7,8 +7,12 @@
 typedef enum {
     VM_OPTIONS_NONE = 0,
     VM_OPTIONS_DEMAND,
-    VM_OPTIONS_BACKED
+    VM_OPTIONS_BACKED,
+    VM_OPTIONS_MEMOBJ
 } vm_node_options_t;
+
+// forward declare :3
+typedef struct memobj memobj_t;
 
 typedef struct {
     rb_node_t rb_node;
@@ -23,6 +27,9 @@ typedef struct {
             vm_flags_t flags;
             bool zero_fill;
         } demand;
+        struct {
+            memobj_t* memobj;
+        } memobj;
     } options;
 
 } vm_node_t;
@@ -49,6 +56,7 @@ void vmm_user_init(vm_allocator_t* allocator, virt_addr_t start, virt_addr_t end
 
 void vmm_destory_allocator(vm_allocator_t* allocator);
 
+vm_node_t* vmm_alloc_raw(vm_allocator_t* allocator, size_t page_count);
 virt_addr_t vmm_alloc(vm_allocator_t* allocator, size_t page_count);
 virt_addr_t vmm_alloc_demand(vm_allocator_t* allocator, size_t page_count, vm_access_t access, vm_cache_t cache, vm_flags_t flags);
 virt_addr_t vmm_alloc_backed(vm_allocator_t* allocator, size_t page_count, vm_access_t access, vm_cache_t cache, vm_flags_t flags, bool zero_fill);

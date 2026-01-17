@@ -24,7 +24,10 @@ typedef enum : uint64_t {
     SYS_ENDPOINT_DESTROY = 65,
     SYS_ENDPOINT_SEND = 66,
     SYS_ENDPOINT_RECEIVE = 67,
-    SYS_ENDPOINT_FREE_MESSAGE = 68
+    SYS_ENDPOINT_FREE_MESSAGE = 68,
+
+    SYS_MEM_ALLOC = 128,
+    SYS_MEM_FREE = 129,
 } syscall_nr_t;
 
 typedef enum : int64_t {
