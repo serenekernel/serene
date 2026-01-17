@@ -14,10 +14,9 @@ __handle_syscall:
     ; but call will push return address (8 bytes), making it misaligned
     ; so we need to adjust by 8 bytes before the pushes
     ; 
-    ; sub rsp, 8      ; @note: align stack for call instruction
+    sub rsp, 8      ; @note: align stack for call instruction
     push rbx
     push rcx
-    push rdx
     push rbp
     push rsi
     push rdi
@@ -56,11 +55,10 @@ __handle_syscall:
     pop rdi
     pop rsi
     pop rbp
-    pop rdx
     pop rcx
     pop rbx
 
-    ; add rsp, 8      ; remove alignment adjustment
+    add rsp, 8      ; remove alignment adjustment
 
 
     mov rsp, qword [r15 + 8]
