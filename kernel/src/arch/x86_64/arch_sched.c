@@ -39,20 +39,22 @@ typedef struct {
     uint64_t user_rsp;     // user stack pointer used by __userspace_init
 } __attribute__((packed)) userspace_init_frame_t;
 
+
+extern void __jump_to_idle_thread(virt_addr_t stack_ptr, virt_addr_t entry_point);
+extern void __context_switch(thread_t* old_thread, thread_t* new_thread, thread_status_t old_thread_status);
+extern void __userspace_init();
+
 void sched_preempt_handler(interrupt_frame_t* frame) {
     (void) frame;
     lapic_eoi();
     sched_yield();
 }
 
-extern void __jump_to_idle_thread(virt_addr_t stack_ptr, virt_addr_t entry_point);
 
 void sched_arch_init_bsp() {
     register_interrupt_handler(0x20, sched_preempt_handler);
 }
 
-void __context_switch(thread_t* old_thread, thread_t* new_thread, thread_status_t old_thread_status);
-void __userspace_init();
 
 void sched_arch_thread_fpu_init(thread_t* thread) {
     bool __irq = interrupts_enabled();
