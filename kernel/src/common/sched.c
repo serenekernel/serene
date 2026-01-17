@@ -18,44 +18,15 @@
 #include <memory/vmm.h>
 #include <stdint.h>
 
-typedef struct {
-    uint64_t r15;
-    uint64_t r14;
-    uint64_t r13;
-    uint64_t r12;
-    uint64_t rbp;
-    uint64_t rbx;
-    uint64_t return_addr;
-} __attribute__((packed)) kernel_context_frame_t;
-
-typedef struct {
-    uint64_t r15;
-    uint64_t r14;
-    uint64_t r13;
-    uint64_t r12;
-    uint64_t rbp;
-    uint64_t rbx;
-    uint64_t return_addr;  // Points to __userspace_init
-    uint64_t entry_point;  // loaded into rcx for the sysret
-    uint64_t user_rsp;     // user stack pointer used by __userspace_init
-} __attribute__((packed)) userspace_init_frame_t;
-
-typedef struct {
-    thread_t* idle_thread;
-    thread_t* reaper_thread;
-    thread_t* thread_head;
-} scheduler_t;
-
 spinlock_t g_sched_lock = 0;
 scheduler_t g_scheduler;
+extern process_t* g_proc_head;
 
 void idle_thread() {
     while(1) {
         arch_pause();
     }
 }
-
-extern process_t* g_proc_head;
 
 void reaper_thread() {
     while(1) {
@@ -132,12 +103,6 @@ void reaper_thread() {
     }
 }
 
-void sched_preempt_handler(interrupt_frame_t* frame) {
-    (void) frame;
-    lapic_eoi();
-    sched_yield();
-}
-
 static uint32_t next_tid = 1;
 extern void __jump_to_idle_thread(virt_addr_t stack_ptr, virt_addr_t entry_point);
 
@@ -160,6 +125,8 @@ thread_t* sched_get_thread(uint32_t tid) {
     return res;
 }
 
+void sched_arch_init_bsp();
+
 void sched_init_bsp() {
     g_sched_lock = 0;
     g_scheduler.idle_thread = sched_thread_kernel_init((virt_addr_t) idle_thread);
@@ -171,14 +138,14 @@ void sched_init_bsp() {
     g_scheduler.thread_head->sched_next = (struct thread*) g_scheduler.reaper_thread;
     printf("Scheduler initialized with idle thread TID %u and reaper thread TID %u\n", g_scheduler.idle_thread->thread_common.tid, g_scheduler.reaper_thread->thread_common.tid);
     CPU_LOCAL_WRITE(current_thread, g_scheduler.idle_thread);
-    register_interrupt_handler(0x20, sched_preempt_handler);
+
+    sched_arch_init_bsp();
 }
 
-void sched_start_bsp() {
+void sched_start() {
     g_scheduler.idle_thread->thread_common.status = THREAD_STATUS_RUNNING;
 
     lapic_timer_oneshot_ms(10);
-    printf("BSP jumping to idle thread...\n");
     __jump_to_idle_thread(g_scheduler.idle_thread->kernel_rsp, (virt_addr_t) idle_thread);
 
     __builtin_unreachable();
@@ -188,99 +155,58 @@ void sched_init_ap() {
     CPU_LOCAL_WRITE(current_thread, g_scheduler.idle_thread);
 }
 
-
 void __context_switch(thread_t* old_thread, thread_t* new_thread, thread_status_t old_thread_status);
 void __userspace_init();
 
-void thread_fpu_init(thread_t* thread) {
-    bool __irq = interrupts_enabled();
-    disable_interrupts();
+void sched_arch_init_thread(thread_t* thread, virt_addr_t entry_point);
+void sched_arch_thread_fpu_init(thread_t* thread);
 
-    thread_t* current_thread = CPU_LOCAL_READ(current_thread);
-    if(current_thread != nullptr && current_thread->fpu_area != nullptr) fpu_save(current_thread->fpu_area);
-    fpu_load(thread->fpu_area);
-    uint16_t x87cw = (1 << 0) | (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 5) | (0b11 << 8);
-    asm volatile("fldcw %0" : : "m"(x87cw) : "memory");
-    uint32_t mxcsr = (1 << 7) | (1 << 8) | (1 << 9) | (1 << 10) | (1 << 11) | (1 << 12);
-    asm volatile("ldmxcsr %0" : : "m"(mxcsr) : "memory");
-    fpu_save(thread->fpu_area);
-    if(current_thread != nullptr && current_thread->fpu_area != nullptr) fpu_load(current_thread->fpu_area);
-
-    if(__irq) enable_interrupts();
-}
-
-thread_t* sched_thread_kernel_init(virt_addr_t entry_point) {
-    thread_t* thread = (thread_t*) vmm_alloc_backed(&kernel_allocator, ALIGN_UP(ALIGN_UP(sizeof(thread_t) + fpu_area_size(), 16), PAGE_SIZE_DEFAULT) / PAGE_SIZE_DEFAULT, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true);
-    thread->thread_common.process = nullptr;
-    thread->thread_common.tid = next_tid++;
-    thread->thread_common.address_space = &kernel_allocator;
-    thread->fpu_area = nullptr;
-    thread->sched_next = nullptr;
-    thread->proc_next = nullptr;
-    thread->thread_rsp = vmm_alloc_backed(&kernel_allocator, 4, VM_ACCESS_USER, VM_CACHE_NORMAL, VM_READ_WRITE, true) + (4 * PAGE_SIZE_DEFAULT);
-    thread->syscall_rsp = 0;
-    thread->kernel_rsp = vmm_alloc_backed(&kernel_allocator, 4, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true) + (4 * PAGE_SIZE_DEFAULT);
-    thread->thread_common.status = THREAD_STATUS_READY;
-
-    // Set up initial stack frame for context switch
-    kernel_context_frame_t* frame = (kernel_context_frame_t*)(thread->kernel_rsp - sizeof(kernel_context_frame_t));
-    frame->r15 = 0;
-    frame->r14 = 0;
-    frame->r13 = 0;
-    frame->r12 = 0;
-    frame->rbp = 0;
-    frame->rbx = 0;
-    frame->return_addr = entry_point;
-    
-    thread->kernel_rsp = (virt_addr_t) frame;
-
-    return thread;
-}
-
-thread_t* sched_thread_user_init(vm_allocator_t* address_space, virt_addr_t entry_point) {
-    assert(address_space->kernel_paging_structures_base != 0 && "cr3 for task is 0");
-    thread_t* thread = (thread_t*) vmm_alloc_backed(&kernel_allocator, ALIGN_UP(ALIGN_UP(sizeof(thread_t) + fpu_area_size(), 64), PAGE_SIZE_DEFAULT) / PAGE_SIZE_DEFAULT, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true);
+thread_t* sched_thread_common_init(vm_allocator_t* address_space, virt_addr_t entry_point) {
+    size_t obj_size = sizeof(thread_t);
+    if(address_space->is_user) {
+        obj_size += fpu_area_size();
+    }
+    obj_size = ALIGN_UP(obj_size, 64);
+    thread_t* thread = (thread_t*) vmm_alloc_object(&kernel_allocator, obj_size);
     thread->thread_common.process = nullptr;
     thread->thread_common.tid = next_tid++;
     thread->thread_common.address_space = address_space;
-    thread->fpu_area = (void*) ALIGN_UP((virt_addr_t) thread + sizeof(thread_t), 64);
+
+    if(address_space->is_user) {
+        thread->fpu_area = (void*) ALIGN_UP((virt_addr_t) thread + sizeof(thread_t), 64);
+    } else {
+        thread->fpu_area = nullptr;
+    }
+    
     thread->sched_next = nullptr;
     thread->proc_next = nullptr;
 
-    thread->thread_rsp = vmm_alloc_backed(address_space, 4, VM_ACCESS_USER, VM_CACHE_NORMAL, VM_READ_WRITE, false) + (4 * PAGE_SIZE_DEFAULT) - 8;
-    thread->syscall_rsp = 0;
+    thread->thread_rsp = vmm_alloc_backed(address_space, 4, (address_space->is_user ? VM_ACCESS_USER : VM_ACCESS_KERNEL), VM_CACHE_NORMAL, VM_READ_WRITE, true) + (4 * PAGE_SIZE_DEFAULT);
     thread->kernel_rsp = vmm_alloc_backed(&kernel_allocator, 4, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true) + (4 * PAGE_SIZE_DEFAULT);
+    thread->syscall_rsp = 0;
+
+    if(address_space->is_user) {
+        sched_arch_thread_fpu_init(thread);
+    } else {
+        thread->fpu_area = nullptr;
+    }
+
+    sched_arch_init_thread(thread, entry_point);
+
     thread->thread_common.status = THREAD_STATUS_READY;
-    thread_fpu_init(thread);
-
-    // Set up initial stack frame for userspace thread initialization
-    userspace_init_frame_t* frame = (userspace_init_frame_t*)(thread->kernel_rsp - sizeof(userspace_init_frame_t));
-    frame->r15 = 0;
-    frame->r14 = 0;
-    frame->r13 = 0;
-    frame->r12 = 0;
-    frame->rbp = 0;
-    frame->rbx = 0;
-    frame->return_addr = (virt_addr_t) __userspace_init;
-    frame->entry_point = entry_point;
-    frame->user_rsp = thread->thread_rsp;
-    
-    thread->kernel_rsp = (virt_addr_t) frame;
-
     return thread;
 }
 
-thread_t* sched_get_current_thread() {
-    thread_t* thread;
-    __asm__ volatile("mov %%gs:0, %0" : "=r"(thread));
-    return thread;
+thread_t* sched_thread_kernel_init(virt_addr_t entry_point) {
+    return sched_thread_common_init(&kernel_allocator, entry_point);
 }
-void sched_set_current_thread(thread_t* thread) {
-    __asm__ volatile("mov %0, %%gs:0" : : "r"(thread));
+
+thread_t* sched_thread_user_init(vm_allocator_t* address_space, virt_addr_t entry_point) {
+    return sched_thread_common_init(address_space, entry_point);
 }
 
 thread_t* find_next_thread() {
-    thread_t* current_thread = sched_get_current_thread();
+    thread_t* current_thread = CPU_LOCAL_READ(current_thread);
 
     while(true) {
         current_thread = (thread_t*) current_thread->sched_next;
@@ -313,31 +239,20 @@ void sched_yield() {
     sched_yield_status(THREAD_STATUS_READY);
 }
 
+void sched_arch_yield_prepare(thread_t* current_thread, thread_t* next_thread);
+
 void sched_yield_status(thread_status_t new_status) {
     disable_interrupts();
     assert(new_status != THREAD_STATUS_RUNNING && "Tried to make thread running from already running context");
     spinlock_lock(&g_sched_lock);
-    thread_t* current_thread = sched_get_current_thread();
+    thread_t* current_thread = CPU_LOCAL_READ(current_thread);
     thread_t* next_thread = find_next_thread();
     assert(next_thread != nullptr && "No next thread found in sched_yield");
     assert(next_thread->thread_common.status == THREAD_STATUS_READY && "Thread is not ready...");
 
     vm_address_space_switch(next_thread->thread_common.address_space);
 
-    // @todo: what the fuck...
-    tss_t* tss = CPU_LOCAL_READ(cpu_tss);
-    tss->rsp0 = next_thread->kernel_rsp;
-
-    // if we aren't comming from a process or that process has no ioports then no need to clear the map it's already empty
-    if(current_thread->thread_common.process != nullptr && current_thread->thread_common.process->io_perm_map_num != 0) {
-        tss_io_clear(CPU_LOCAL_READ(cpu_tss));
-    }
-
-    if(next_thread->thread_common.process != nullptr) {
-        for(size_t i = 0; i < next_thread->thread_common.process->io_perm_map_num; i++) {
-            tss_io_allow_port(CPU_LOCAL_READ(cpu_tss), next_thread->thread_common.process->io_perm_map[i]);
-        }
-    }
+    sched_arch_yield_prepare(current_thread, next_thread);
 
     if(current_thread->fpu_area != nullptr) {
         fpu_save(current_thread->fpu_area);
@@ -346,7 +261,7 @@ void sched_yield_status(thread_status_t new_status) {
         fpu_load(next_thread->fpu_area);
     }
 
-    sched_set_current_thread(next_thread);
+    CPU_LOCAL_WRITE(current_thread, next_thread);
 
     spinlock_unlock(&g_sched_lock);
     lapic_timer_oneshot_ms(10);

@@ -247,7 +247,7 @@ void arch_init_bsp() {
     enable_interrupts();
 
     // Jump to the idle thread - this never returns
-    sched_start_bsp();
+    sched_start();
 }
 
 void arch_init_ap(struct limine_mp_info* info) {
