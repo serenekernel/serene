@@ -16,9 +16,6 @@ syscall_ret_t syscall_sys_endpoint_create() {
     handle_t handle = handle_create(HANDLE_TYPE_ENDPOINT, thread->thread_common.tid, HANDLE_CAPS_ENDPOINT_SEND | HANDLE_CAPS_ENDPOINT_RECEIVE | HANDLE_CAPS_ENDPOINT_CLOSE, (void*) endpoint);
     printf("Created endpoint handle 0x%llx for process %d\n", handle, thread->thread_common.process->pid);
 
-    // @note: temp
-    sched_wake_thread_id(4);
-
     return SYSCALL_RET_VALUE(handle);
 }
 
