@@ -143,6 +143,26 @@ __attribute__((noreturn)) void arch_panic_int(interrupt_frame_t* frame) {
     printf("cr4 = 0x%016llx [todo]\n", cr4);
     printf("cr8 = 0x%016llx [tpl=%d]\n", cr8);
 
+    arch_disable_uap();
+
+    virt_addr_t stack_frame_ptr = frame->rbp;
+    printf("\nStack backtrace:\n");
+    for(int i = 0; i < 16; i++) {
+        if(stack_frame_ptr == 0) {
+            break;
+        }
+        
+        virt_addr_t new_stack_frame_ptr = *(virt_addr_t*)stack_frame_ptr;
+        virt_addr_t return_address = *(virt_addr_t*)(stack_frame_ptr + 8);
+
+        if(return_address == 0 || new_stack_frame_ptr == 0) {
+            break;
+        }
+
+        printf("  0x%016llx (next instruction)\n", return_address);
+        stack_frame_ptr = new_stack_frame_ptr;
+    }
+
     printf("\n\nWell uhhhh what now?\n");
 
     while(1) {
