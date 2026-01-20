@@ -40,7 +40,7 @@ void ipi_init_ap() {
 void ipi_set(uint32_t cpu_id, ipi_t* ipi) {
     assert(g_ipi_table != nullptr && "IPI table not initialized before setting IPI");
     assert(g_ipi_table[cpu_id].cpu_exists == true && "Setting IPI to non-existent CPU");
-    printf("Setting IPI on %d\n", cpu_id);
+    assert(arch_get_core_id() != cpu_id && "Setting IPI to self CPU");
     spinlock_lock(&g_ipi_table[cpu_id].ipi_lock);
     memcpy(&g_ipi_table[cpu_id].ipi, ipi, sizeof(ipi_t));
     g_ipi_table[cpu_id].ipi_pending = true;
@@ -86,6 +86,7 @@ void ipi_broadcast_async(ipi_t* ipi) {
     if(g_ipi_table == nullptr) {
         return;
     }
+
     spinlock_lock(&g_ipi_lock);
     ipi_broadcast_raw(ipi);
     arch_ipi_broadcast_raw();
