@@ -1,32 +1,31 @@
-#include <arch/internal/cr.h>
-#include <ldr/elf.h>
-#include <arch/hardware/lapic.h>
-#include <common/handle.h>
 #include <arch/hardware/fpu.h>
-#include <string.h>
-#include <arch/internal/gdt.h>
 #include <arch/hardware/lapic.h>
+#include <arch/internal/cr.h>
+#include <arch/internal/gdt.h>
 #include <arch/interrupts.h>
 #include <arch/msr.h>
+#include <common/acpi.h>
 #include <common/arch.h>
 #include <common/cpu_local.h>
+#include <common/handle.h>
 #include <common/interrupts.h>
 #include <common/io.h>
 #include <common/ipi.h>
-#include <memory/memory.h>
 #include <common/requests.h>
 #include <common/sched.h>
 #include <common/spinlock.h>
 #include <common/userspace.h>
+#include <ldr/elf.h>
 #include <limine.h>
+#include <memory/memobj.h>
+#include <memory/memory.h>
 #include <memory/pagedb.h>
 #include <memory/pmm.h>
-#include <stdatomic.h>
 #include <memory/vmm.h>
-#include <memory/memobj.h>
 #include <sparse_array.h>
+#include <stdatomic.h>
 #include <stdio.h>
-#include <common/acpi.h>
+#include <string.h>
 
 const char* arch_get_name(void) {
     return "x86_64";
@@ -45,6 +44,37 @@ void arch_memory_barrier(void) {
 
 void arch_pause() {
     __asm__ volatile("pause" ::: "memory");
+}
+
+
+void __set_uap(bool value) {
+    arch_memory_barrier();
+
+    if(value) {
+        __asm__ volatile("stac");
+    } else {
+        __asm__ volatile("clac");
+    }
+
+    arch_memory_barrier();
+}
+
+bool arch_get_uap() {
+    // read rflags
+    uint64_t rflags;
+    __asm__ volatile("pushfq\n" "pop %0" : "=r"(rflags));
+    return (rflags & (1 << 18)) != 0;
+}
+
+bool arch_disable_uap() {
+    bool prev = arch_get_uap();
+    // set to disable access check we need to set it... ugh
+    __set_uap(true);
+    return prev;
+}
+
+void arch_restore_uap(bool __prev) {
+    __set_uap(__prev);
 }
 
 void setup_memory() {
@@ -67,6 +97,7 @@ void setup_memory() {
     printf("we pray\n");
     vm_address_space_switch(&kernel_allocator);
     printf("we didn't die\n");
+
     arch_memory_barrier();
     uint64_t cr4 = __read_cr4();
     cr4 |= (1 << 20); // Enable SMEP
@@ -76,67 +107,9 @@ void setup_memory() {
     uint64_t cr0 = __read_cr0();
     cr0 |= (1 << 16); // Enable WP
     __write_cr0(cr0);
-    arch_memory_barrier();
-
-}
-
-void __set_uap(bool value) {
-    arch_memory_barrier();
-    uint64_t cr4 = __read_cr4();
-    if (value) {
-        cr4 |= (1 << 21); // Set SMAP bit
-    } else {
-        cr4 &= ~(1 << 21); // Clear SMAP bit
-    }
-    __write_cr4(cr4);
+    __set_uap(true);
     arch_memory_barrier();
 }
-
-void __set_wp(bool value) {
-    arch_memory_barrier();
-    uint64_t cr0 = __read_cr0();
-    if (value) {
-        cr0 |= (1 << 16); // Set WP bit
-    } else {
-        cr0 &= ~(1 << 16); // Clear WP bit
-    }
-    __write_cr0(cr0);
-    arch_memory_barrier();
-}
-
-
-bool arch_get_uap() {
-    uint64_t cr4 = __read_cr4();
-    bool smap = (cr4 >> 21) & 1;
-    return smap;
-}
-
-bool arch_disable_uap() {
-    bool prev = arch_get_uap();
-    __set_uap(false);
-    return prev;
-}
-
-void arch_restore_uap(bool __prev) {
-    __set_uap(__prev);
-}
-
-bool arch_get_wp() {
-    uint64_t cr0 = __read_cr0();
-    bool wp = (cr0 >> 16) & 1;
-    return wp;
-}
-
-bool arch_disable_wp() {
-    bool prev = arch_get_wp();
-    __set_wp(false);
-    return prev;
-}
-
-void arch_restore_wp(bool __prev) {
-    __set_wp(__prev);
-}
-
 
 void setup_arch() {
     init_cpu_local();
@@ -217,12 +190,14 @@ void arch_init_bsp() {
     }
 
     printf("Waiting for APs to boot...\n");
+    enable_interrupts();
     while(true) {
         if(atomic_load(&arch_ap_count) + 1 >= mp_request.response->cpu_count) {
             break;
         }
         arch_pause();
     }
+    disable_interrupts();
 
     sched_init_bsp();
     handle_setup();
@@ -258,7 +233,19 @@ void arch_init_ap(struct limine_mp_info* info) {
     printf("ap paging pray\n");
     vm_address_space_switch(&kernel_allocator);
     printf("ap didn't kill itself\n");
-    
+
+    arch_memory_barrier();
+    uint64_t cr4 = __read_cr4();
+    cr4 |= (1 << 20); // Enable SMEP
+    cr4 |= (1 << 21); // Enable SMAP
+    __write_cr4(cr4);
+    arch_memory_barrier();
+    uint64_t cr0 = __read_cr0();
+    cr0 |= (1 << 16); // Enable WP
+    __write_cr0(cr0);
+    __set_uap(false);
+    arch_memory_barrier();
+
     spinlock_lock(&arch_ap_init_lock);
     init_cpu_local();
     setup_gdt();
@@ -268,7 +255,7 @@ void arch_init_ap(struct limine_mp_info* info) {
     setup_interrupts_ap();
     lapic_init_ap();
     fpu_init_ap();
-    
+
     enable_interrupts();
     sched_init_ap();
 
@@ -300,6 +287,7 @@ void arch_set_flags(uint64_t flags) {
     __asm__ volatile("pushq %0\n" "popfq\n" : : "r"(flags));
 }
 
+
 size_t arch_get_max_cpu_id(void) {
     uint32_t highest_apic_id = 0;
     for(size_t i = 0; i < mp_request.response->cpu_count; i++) {
@@ -307,7 +295,7 @@ size_t arch_get_max_cpu_id(void) {
             highest_apic_id = mp_request.response->cpus[i]->lapic_id;
         }
     }
-    return (size_t)highest_apic_id;
+    return (size_t) highest_apic_id;
 }
 
 void lapic_send_raw_ipi(uint32_t apic_id);
@@ -326,5 +314,5 @@ void arch_ipi_eoi(void) {
 }
 
 void arch_debug_putc(char c) {
-    port_write_u8(0xe9, (uint8_t)c);
+    port_write_u8(0xe9, (uint8_t) c);
 }

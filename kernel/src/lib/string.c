@@ -1,11 +1,13 @@
-#include <common/arch.h>
+#include "common/requests.h"
+
 #include <assert.h>
+#include <common/arch.h>
+#include <common/interrupts.h>
 #include <memory/memory.h>
+#include <memory/vmm.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
-#include <common/interrupts.h>
-#include <memory/vmm.h>
 
 size_t strlen(const char* s) {
     size_t len = 0;
@@ -101,87 +103,108 @@ int strncmp(const char* s1, const char* s2, size_t n) {
     return 0;
 }
 
-void memcpy_um_um(vm_allocator_t* dest_alloc, vm_allocator_t* src_alloc, virt_addr_t dest, virt_addr_t src, size_t n) {
+void memcpy_um_um(vm_allocator_t* dest_alloc, vm_allocator_t* src_alloc, virt_addr_t dest, virt_addr_t src, size_t page_count) {
     bool irq = interrupts_enabled();
     if(irq) disable_interrupts();
-    #ifdef __ARCH_X86_64__
-    
-    ENTER_UAP_SECTION();
-    ENTER_ADDRESS_SWITCH();
+#ifdef __ARCH_X86_64__
+    for(size_t i = 0; i < page_count; i++) {
+        phys_addr_t dest_phys = vm_resolve(dest_alloc, dest + i * PAGE_SIZE_DEFAULT);
+        assert(dest_phys != 0 && "memcpy_km_um: source address not mapped");
+        phys_addr_t src_phys = vm_resolve(src_alloc, src + i * PAGE_SIZE_DEFAULT);
+        assert(src_phys != 0 && "memcpy_km_um: destination address not mapped");
+        assert(src_phys != 0 && "memcpy_km_um: destination address not writeable");
+    }
 
-    vm_address_space_switch(src_alloc);
-    
-    virt_addr_t kernel_buffer = vmm_alloc_object(&kernel_allocator, n);
-    memcpy((void*) kernel_buffer, (void*) src, n);
-
-    vm_address_space_switch(dest_alloc);
-    ENTER_WP_SECTION();
-    memcpy((void*) dest, (void*) kernel_buffer, n);
-    EXIT_WP_SECTION();
-    vmm_free(&kernel_allocator, kernel_buffer);
-
-    EXIT_ADDRESS_SWITCH();
-    EXIT_UAP_SECTION();
-
-    #else
-    (void) dest_alloc; (void) src_alloc; (void) dest; (void) src; (void) n;
+    for(size_t i = 0; i < page_count; i++) {
+        phys_addr_t dest_phys = vm_resolve(dest_alloc, dest + i * PAGE_SIZE_DEFAULT);
+        phys_addr_t src_phys = vm_resolve(src_alloc, src + i * PAGE_SIZE_DEFAULT);
+        memcpy((void*) TO_HHDM(dest_phys), (void*) TO_HHDM(src_phys), PAGE_SIZE_DEFAULT);
+    }
+#else
+    (void) dest_alloc;
+    (void) src_alloc;
+    (void) dest;
+    (void) src;
+    (void) n;
     assert(false); // @todo:
-    #endif
+#endif
     if(irq) enable_interrupts();
     return;
 }
 
-void memcpy_km_um(vm_allocator_t* dest_alloc, virt_addr_t dest, virt_addr_t src, size_t n) {
+void memcpy_km_um(vm_allocator_t* dest_alloc, virt_addr_t dest, virt_addr_t src, size_t page_count) {
     bool irq = interrupts_enabled();
     if(irq) disable_interrupts();
-    #ifdef __ARCH_X86_64__
-    
-    ENTER_ADDRESS_SWITCH();
-    ENTER_UAP_SECTION();
-    ENTER_WP_SECTION();
+#ifdef __ARCH_X86_64__
+    // verify all pages are mapped
+    for(size_t i = 0; i < page_count; i++) {
+        phys_addr_t phys = vm_resolve(dest_alloc, dest + i * PAGE_SIZE_DEFAULT);
+        assert(phys != 0 && "memcpy_km_um: destination address not mapped");
+    }
 
-    vm_address_space_switch(dest_alloc);
-    memcpy((void*) dest, (void*) src, n);
-    
-    EXIT_WP_SECTION();
-    EXIT_UAP_SECTION();
-    EXIT_ADDRESS_SWITCH()
-
-    #else
-    (void) dest_alloc; (void) dest; (void) src; (void) n;
+    for(size_t i = 0; i < page_count; i++) {
+        phys_addr_t phys = vm_resolve(dest_alloc, dest + i * PAGE_SIZE_DEFAULT);
+        memcpy((void*) TO_HHDM(phys), (void*) (src + (i * PAGE_SIZE_DEFAULT)), PAGE_SIZE_DEFAULT);
+    }
+#else
+    (void) dest_alloc;
+    (void) dest;
+    (void) src;
+    (void) n;
     assert(false); // @todo:
-    #endif
+#endif
     if(irq) enable_interrupts();
     return;
 }
 
-void memset_vm(vm_allocator_t* dest_alloc, virt_addr_t dest, int c, size_t n) {
+void memset_vm(vm_allocator_t* dest_alloc, virt_addr_t dest, int c, size_t page_count) {
     bool irq = interrupts_enabled();
     if(irq) disable_interrupts();
 
     if(dest_alloc->is_user == false) {
-        memset((void*) dest, c, n);
+        memset((void*) dest, c, page_count * PAGE_SIZE_DEFAULT);
         if(irq) enable_interrupts();
         return;
     }
 
-    #ifdef __ARCH_X86_64__
-    ENTER_ADDRESS_SWITCH();
-    ENTER_UAP_SECTION();
-    ENTER_WP_SECTION();
-    
-    vm_address_space_switch(dest_alloc);
+#ifdef __ARCH_X86_64__
+    for(size_t i = 0; i < page_count; i++) {
+        phys_addr_t phys = vm_resolve(dest_alloc, dest + (i * PAGE_SIZE_DEFAULT));
+        assert(phys != 0 && "memcpy_km_um: destination address not mapped");
+    }
 
-    memset((void*) dest, c, n);
-
-    EXIT_WP_SECTION();
-    EXIT_UAP_SECTION();
-    EXIT_ADDRESS_SWITCH();
-
-    #else
-    (void) dest_alloc; (void) dest; (void) src; (void) n;
+    for(size_t i = 0; i < page_count; i++) {
+        phys_addr_t phys = vm_resolve(dest_alloc, dest + (i * PAGE_SIZE_DEFAULT));
+        memset((void*) TO_HHDM(phys), c, PAGE_SIZE_DEFAULT);
+    }
+#else
+    (void) dest_alloc;
+    (void) dest;
+    (void) src;
+    (void) n;
     assert(false); // @todo:
-    #endif
+#endif
     if(irq) enable_interrupts();
     return;
+}
+
+void memcpy_um_um_unaligned(vm_allocator_t* dest_alloc, vm_allocator_t* src_alloc, virt_addr_t dest, virt_addr_t src, size_t length) {
+    virt_addr_t src_page_aligned = ALIGN_DOWN(src, PAGE_SIZE_DEFAULT);
+    virt_addr_t dest_page_aligned = ALIGN_DOWN(dest, PAGE_SIZE_DEFAULT);
+    size_t src_offset = src - src_page_aligned;
+    size_t dest_offset = dest - dest_page_aligned;
+
+    for(size_t i = 0; i < length; i++) {
+        size_t src_page = (src_offset + i) / PAGE_SIZE_DEFAULT;
+        size_t src_page_offset = (src_offset + i) % PAGE_SIZE_DEFAULT;
+        size_t dest_page = (dest_offset + i) / PAGE_SIZE_DEFAULT;
+        size_t dest_page_offset = (dest_offset + i) % PAGE_SIZE_DEFAULT;
+
+        phys_addr_t src_phys = vm_resolve(src_alloc, src_page_aligned + src_page * PAGE_SIZE_DEFAULT);
+        phys_addr_t dest_phys = vm_resolve(dest_alloc, dest_page_aligned + dest_page * PAGE_SIZE_DEFAULT);
+
+        uint8_t* src_byte = (uint8_t*) TO_HHDM(src_phys + src_page_offset);
+        uint8_t* dest_byte = (uint8_t*) TO_HHDM(dest_phys + dest_page_offset);
+        *dest_byte = *src_byte;
+    }
 }

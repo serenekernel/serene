@@ -1,13 +1,16 @@
+#include "memory/vmm.h"
+
 #include <arch/cpu_local.h>
-#include <common/userspace.h>
-#include <memory/memobj.h>
-#include <common/handle.h>
-#include <common/process.h>
-#include <common/sched.h>
+#include <common/arch.h>
 #include <common/cpu_local.h>
 #include <common/endpoint.h>
+#include <common/handle.h>
+#include <common/process.h>
+#include <common/requests.h>
+#include <common/sched.h>
+#include <common/userspace.h>
+#include <memory/memobj.h>
 #include <string.h>
-#include <common/arch.h>
 
 syscall_ret_t syscall_sys_endpoint_create() {
     thread_t* thread = CPU_LOCAL_READ(current_thread);
@@ -36,22 +39,24 @@ syscall_ret_t syscall_sys_endpoint_send(uint64_t handle_value, uint64_t payload,
     SYSCALL_ASSERT_PARAM(payload_length < PAGE_SIZE_DEFAULT * 4);
 
     thread_t* thread = CPU_LOCAL_READ(current_thread);
-
-    ENTER_UAP_SECTION();
-    ENTER_WP_SECTION()
+    printf("payload len: %lld\n", payload_length);
     ENTER_ADDRESS_SWITCH();
+    ENTER_UAP_SECTION();
 
     vm_address_space_switch(endpoint->owner->thread_common.address_space);
+
     message_t* message = (message_t*) vmm_alloc_object(endpoint->owner->thread_common.address_space, sizeof(message_t) + payload_length);
     message->length = (uint32_t) payload_length;
     message->type = 0;
-message->flags = 0;
+    message->flags = 0;
     message->reply_handle = -1;
-    memcpy_um_um(endpoint->owner->thread_common.address_space, thread->thread_common.address_space, (virt_addr_t) message->payload, (virt_addr_t) payload, payload_length);
 
-    EXIT_ADDRESS_SWITCH();
-    EXIT_WP_SECTION();
+    printf("send: message ptr 0x%llx, length %u, type %u, flags %u, reply_handle 0x%llx\n", (uint64_t) message, message->length, message->type, message->flags, message->reply_handle);
+
     EXIT_UAP_SECTION()
+    EXIT_ADDRESS_SWITCH();
+
+    memcpy_um_um_unaligned(endpoint->owner->thread_common.address_space, thread->thread_common.address_space, (virt_addr_t) message->payload, (virt_addr_t) payload, payload_length);
 
     bool result = endpoint_send(endpoint, message);
     if(!result) {
@@ -65,7 +70,7 @@ syscall_ret_t syscall_sys_endpoint_free_message(uint64_t message_ptr) {
     message_t* message = (message_t*) message_ptr;
     thread_t* thread = CPU_LOCAL_READ(current_thread);
     vmm_free(thread->thread_common.address_space, (virt_addr_t) message);
-    return SYSCALL_RET_VALUE(0) ;
+    return SYSCALL_RET_VALUE(0);
 }
 
 syscall_ret_t syscall_sys_endpoint_receive(uint64_t handle_value) {
@@ -80,6 +85,17 @@ syscall_ret_t syscall_sys_endpoint_receive(uint64_t handle_value) {
     if(!message) {
         return SYSCALL_RET_ERROR(SYSCALL_ERR_WOULD_BLOCK);
     }
+
+    // Switch to receiver's address space to read message fields for debug
+    thread_t* thread = CPU_LOCAL_READ(current_thread);
+    ENTER_ADDRESS_SWITCH();
+    ENTER_UAP_SECTION();
+    vm_address_space_switch(thread->thread_common.address_space);
+
+    printf("receive: message ptr 0x%llx, length %u, type %u, flags %u, reply_handle 0x%llx\n", (uint64_t) message, message->length, message->type, message->flags, message->reply_handle);
+
+    EXIT_UAP_SECTION();
+    EXIT_ADDRESS_SWITCH();
 
     // Return the pointer directly - user can read length from message_t->length
     return SYSCALL_RET_VALUE((uint64_t) message);

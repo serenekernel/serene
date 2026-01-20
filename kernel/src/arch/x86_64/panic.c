@@ -50,7 +50,7 @@ __attribute__((noreturn)) void arch_panic_int(interrupt_frame_t* frame) {
         uint8_t shadow_stack = ((frame->error & (1 << 6)) > 0);
         uint8_t sgx = ((frame->error & (1 << 15)) > 0);
         printf(
-            "Page fault @ 0x%016llx [ppv=%d, write=%d, ring3=%d, resv=%d, fetch=%d, pk=%d, ss=%d, sgx=%d, wp=%d, smap=%d]\n",
+            "Page fault @ 0x%016llx [ppv=%d, write=%d, ring3=%d, resv=%d, fetch=%d, pk=%d, ss=%d, sgx=%d, uap=%d]\n",
             __read_cr2(),
             page_protection_violation,
             write_access,
@@ -60,13 +60,13 @@ __attribute__((noreturn)) void arch_panic_int(interrupt_frame_t* frame) {
             protection_key,
             shadow_stack,
             sgx,
-            arch_get_wp(),
             arch_get_uap()
         );
 
         if(reserved_bit) {
             printf("Reserved bit in page table entry\n");
-        } if(protection_key) {
+        }
+        if(protection_key) {
             printf("Protection key violation\n");
         } else {
             const char* who = user_mode ? "User Process" : "Kernel";
@@ -74,8 +74,8 @@ __attribute__((noreturn)) void arch_panic_int(interrupt_frame_t* frame) {
             if(instruction_fetch) {
                 access = "execute";
             }
+
             const char* reason = page_protection_violation ? "non-writeable" : "non-present";
-            
             if(instruction_fetch) {
                 reason = "non-executable";
             }
@@ -122,6 +122,7 @@ __attribute__((noreturn)) void arch_panic_int(interrupt_frame_t* frame) {
     printf("cs  = 0x%016llx, rip = 0x%016llx\n", frame->cs, frame->rip);
     printf("ss  = 0x%016llx, rsp = 0x%016llx\n", frame->ss, frame->rsp);
     printf("rbp = 0x%016llx, rflags = 0x%016llx\n", frame->rbp, frame->rflags);
+    printf("error = 0x%016llx\n", frame->error);
 
     uint64_t cr0 = __read_cr0();
     uint64_t cr2 = __read_cr2();
@@ -151,9 +152,14 @@ __attribute__((noreturn)) void arch_panic_int(interrupt_frame_t* frame) {
         if(stack_frame_ptr == 0) {
             break;
         }
-        
-        virt_addr_t new_stack_frame_ptr = *(virt_addr_t*)stack_frame_ptr;
-        virt_addr_t return_address = *(virt_addr_t*)(stack_frame_ptr + 8);
+
+        if(stack_frame_ptr < 0xffffffff80000000) {
+            printf("  0x%016llx <userspace>\n", stack_frame_ptr);
+            break;
+        }
+
+        virt_addr_t new_stack_frame_ptr = *(virt_addr_t*) stack_frame_ptr;
+        virt_addr_t return_address = *(virt_addr_t*) (stack_frame_ptr + 8);
 
         if(return_address == 0 || new_stack_frame_ptr == 0) {
             break;

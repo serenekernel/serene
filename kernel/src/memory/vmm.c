@@ -1,10 +1,11 @@
+#include "common/arch.h"
+#include "memory/memobj.h"
 #include "memory/memory.h"
 #include "memory/pmm.h"
-#include "memory/memobj.h"
 #include "rbtree.h"
-#include <assert.h>
 #include "sparse_array.h"
 
+#include <assert.h>
 #include <common/requests.h>
 #include <memory/pagedb.h>
 #include <memory/vmm.h>
@@ -96,14 +97,18 @@ virt_addr_t vmm_alloc_demand(vm_allocator_t* allocator, size_t page_count, vm_ac
 virt_addr_t vmm_alloc_backed(vm_allocator_t* allocator, size_t page_count, vm_access_t access, vm_cache_t cache, vm_flags_t flags, bool zero_fill) {
     vm_node_t* node = vmm_alloc_raw(allocator, page_count);
     assert(node != nullptr && "vmm_alloc_backed: failed to allocate vm_node");
+    assert(page_count > 0 && "vmm_alloc_backed: page_count must be greater than 0");
+    assert((flags & VM_NON_PRESENT) == 0 && "vmm_alloc_backed: cannot allocate backed memory with VM_NON_PRESENT flag");
+
     node->options_type = VM_OPTIONS_BACKED;
     for(size_t i = 0; i < page_count; i++) {
         phys_addr_t phys = pmm_alloc_page();
+        if(zero_fill) {
+            memset((void*) TO_HHDM(phys), 0, PAGE_SIZE_DEFAULT);
+        }
         vm_map_page(allocator, node->base + (i * PAGE_SIZE_DEFAULT), phys, access, cache, flags);
     }
-    if(zero_fill) {
-        memset_vm(allocator, node->base, 0, page_count * PAGE_SIZE_DEFAULT);
-    }
+
     return node->base;
 }
 
@@ -146,10 +151,10 @@ virt_addr_t vmm_try_alloc_backed(vm_allocator_t* allocator, virt_addr_t address,
 
     for(size_t i = 0; i < page_count; i++) {
         phys_addr_t phys = pmm_alloc_page();
+        if(zero_fill) {
+            memset((void*) TO_HHDM(phys), 0, PAGE_SIZE_DEFAULT);
+        }
         vm_map_page(allocator, new_node->base + (i * PAGE_SIZE_DEFAULT), phys, access, cache, flags);
-    }
-    if(zero_fill) {
-        memset_vm(allocator, new_node->base, 0, page_count * PAGE_SIZE_DEFAULT);
     }
 
     return new_node->base;
@@ -198,7 +203,7 @@ void vmm_free(vm_allocator_t* allocator, virt_addr_t addr) {
             for(size_t i = 0; i < page_count; i++) {
                 vm_unmap_page(allocator, vm_node->base + (i * PAGE_SIZE_DEFAULT));
             }
-            
+
             memobj_t* memobj = vm_node->options.memobj.memobj;
             if(memobj) {
                 memobj_unref(memobj);
@@ -209,21 +214,22 @@ void vmm_free(vm_allocator_t* allocator, virt_addr_t addr) {
     }
 }
 
-#define MAP_SEGMENT(name, map_type) { \
-    extern char name##_start[]; \
-    extern char name##_end[]; \
-    uintptr_t offset = name##_start - kernel_start; \
-    uintptr_t size = name##_end - name##_start; \
-    printf("%s - 0x%llx, 0x%llx\n", #name, offset, size); \
-    for (uintptr_t i = offset; i < offset + size; i += PAGE_SIZE_DEFAULT) { \
-        vm_map_page(&kernel_allocator, kernel_virt + i, kernel_phys + i, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, map_type); \
-    } \
-}
+#define MAP_SEGMENT(name, map_type)                                                                                        \
+    {                                                                                                                      \
+        extern char name##_start[];                                                                                        \
+        extern char name##_end[];                                                                                          \
+        uintptr_t offset = name##_start - kernel_start;                                                                    \
+        uintptr_t size = name##_end - name##_start;                                                                        \
+        printf("%s - 0x%llx, 0x%llx\n", #name, offset, size);                                                              \
+        for(uintptr_t i = offset; i < offset + size; i += PAGE_SIZE_DEFAULT) {                                             \
+            vm_map_page(&kernel_allocator, kernel_virt + i, kernel_phys + i, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, map_type); \
+        }                                                                                                                  \
+    }
 
 void vm_map_kernel() {
     extern char kernel_start[];
-    phys_addr_t kernel_phys = (phys_addr_t)kernel_mapping.response->physical_base;
-    virt_addr_t kernel_virt = (virt_addr_t)kernel_start;
+    phys_addr_t kernel_phys = (phys_addr_t) kernel_mapping.response->physical_base;
+    virt_addr_t kernel_virt = (virt_addr_t) kernel_start;
 
     MAP_SEGMENT(text, VM_READ_ONLY | VM_EXECUTE);
     MAP_SEGMENT(rodata, VM_READ_ONLY);

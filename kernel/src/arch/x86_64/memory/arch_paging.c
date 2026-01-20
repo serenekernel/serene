@@ -1,10 +1,10 @@
-#include <arch/internal/cr.h>
 #include <arch/internal/cpuid.h>
+#include <arch/internal/cr.h>
 #include <arch/msr.h>
 #include <common/arch.h>
 #include <common/ipi.h>
-#include <memory/memory.h>
 #include <common/requests.h>
+#include <memory/memory.h>
 #include <memory/pagedb.h>
 #include <memory/pmm.h>
 #include <memory/vmm.h>
@@ -224,6 +224,47 @@ phys_addr_t vm_resolve(vm_allocator_t* allocator, virt_addr_t virt_addr) {
 
     return page_entry & SMALL_PAGE_ADDRESS_MASK;
 }
+
+phys_addr_t vm_resolve_protections(vm_allocator_t* allocator, virt_addr_t virt_addr, vm_flags_t* out_protection) {
+    uint64_t* pml4 = (uint64_t*) TO_HHDM(allocator->kernel_paging_structures_base);
+
+    uint64_t* pdpt = next_if_exists(pml4, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PML4));
+    if(pdpt == NULL) {
+        return 0;
+    }
+
+    uint64_t* pd = next_if_exists(pdpt, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PDPT));
+    if(pd == NULL) {
+        return 0;
+    }
+
+    uint64_t* pt = next_if_exists(pd, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PD));
+    if(pt == NULL) {
+        return 0;
+    }
+
+    uint64_t page_entry = pt[(uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PT)];
+    if(!(page_entry & PAGE_PRESENT_BIT)) {
+        return 0;
+    }
+
+    vm_flags_t protections = VM_READ_ONLY;
+    if(page_entry & PAGE_RW_BIT) {
+        protections |= VM_READ_WRITE;
+    }
+
+    if(!(page_entry & PAGE_EXECUTE_DISABLE_BIT)) {
+        protections |= VM_EXECUTE;
+    }
+
+    if(!(page_entry & PAGE_GLOBAL_BIT)) {
+        protections |= VM_GLOBAL;
+    }
+
+    *out_protection = protections;
+    return page_entry & SMALL_PAGE_ADDRESS_MASK;
+}
+
 void vm_unmap_page(vm_allocator_t* allocator, virt_addr_t virt_addr) {
     arch_memory_barrier();
     uint64_t* pml4 = (uint64_t*) TO_HHDM(allocator->kernel_paging_structures_base);

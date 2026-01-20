@@ -1,11 +1,12 @@
 #include "common/thread.h"
+
 #include <assert.h>
 #include <common/interrupts.h>
-#include <memory/memory.h>
 #include <common/process.h>
-#include <common/sched.h>
 #include <common/requests.h>
+#include <common/sched.h>
 #include <lib/ldr/elf.h>
+#include <memory/memory.h>
 #include <memory/vmm.h>
 #include <string.h>
 
@@ -51,7 +52,7 @@ void load_elf_exec(const elf64_elf_header_t* header, vm_allocator_t* allocator) 
     assert(header->e_phnum != 0xffff && "the number of program headers is too large to fit into e_phnum");
 
     // First pass: find the full address range needed for all LOAD segments
-    virt_addr_t min_addr = (virt_addr_t)-1;
+    virt_addr_t min_addr = (virt_addr_t) -1;
     virt_addr_t max_addr = 0;
 
     for(uint16_t i = 0; i < header->e_phnum; i++) {
@@ -86,11 +87,14 @@ void load_elf_exec(const elf64_elf_header_t* header, vm_allocator_t* allocator) 
         virt_addr_t segment_vaddr = phdr->p_vaddr + base_address;
 
         // Copy file contents
-        memcpy_km_um(allocator, (virt_addr_t) segment_vaddr, ((virt_addr_t) header + phdr->p_offset), phdr->p_filesz);
+        size_t filesz_pages = ALIGN_UP(phdr->p_filesz, PAGE_SIZE_DEFAULT) / PAGE_SIZE_DEFAULT;
+        memcpy_km_um(allocator, (virt_addr_t) segment_vaddr, ((virt_addr_t) header + phdr->p_offset), filesz_pages);
 
         // Zero-fill remaining memory (BSS section)
         if(phdr->p_memsz > phdr->p_filesz) {
-            memset_vm(allocator, (virt_addr_t) (segment_vaddr + phdr->p_filesz), 0, phdr->p_memsz - phdr->p_filesz);
+            size_t bss_size = phdr->p_memsz - phdr->p_filesz;
+            size_t bss_pages = ALIGN_UP(bss_size, PAGE_SIZE_DEFAULT) / PAGE_SIZE_DEFAULT;
+            memset_vm(allocator, (virt_addr_t) (segment_vaddr + phdr->p_filesz), 0, bss_pages);
         }
     }
 

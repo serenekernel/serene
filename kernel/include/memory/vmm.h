@@ -1,6 +1,6 @@
 #pragma once
-#include <memory/memory.h>
 #include <lib/sparse_array.h>
+#include <memory/memory.h>
 #include <rbtree.h>
 #include <stddef.h>
 
@@ -71,6 +71,7 @@ void vm_map_page(vm_allocator_t* allocator, virt_addr_t virt_addr, phys_addr_t p
 void vm_reprotect_page(vm_allocator_t* allocator, virt_addr_t virt_addr, vm_access_t access, vm_cache_t cache, vm_flags_t flags);
 void vm_remap_page(vm_allocator_t* allocator, virt_addr_t virt_addr, phys_addr_t new_phys_addr);
 phys_addr_t vm_resolve(vm_allocator_t* allocator, virt_addr_t virt_addr);
+phys_addr_t vm_resolve_protections(vm_allocator_t* allocator, virt_addr_t virt_addr, vm_flags_t* out_protection);
 void vm_unmap_page(vm_allocator_t* allocator, virt_addr_t virt_addr);
 
 void vm_map_pages_continuous(vm_allocator_t* allocator, virt_addr_t virt_addr, phys_addr_t phys_addr, size_t page_count, vm_access_t access, vm_cache_t cache, vm_flags_t flags);
