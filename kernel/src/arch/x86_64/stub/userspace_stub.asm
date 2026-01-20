@@ -14,7 +14,7 @@ __handle_syscall:
     ; but call will push return address (8 bytes), making it misaligned
     ; so we need to adjust by 8 bytes before the pushes
     ; 
-    sub rsp, 8      ; @note: align stack for call instruction
+    ; sub rsp, 8      ; @note: align stack for call instruction
     push rbx
     push rcx
     push rbp
@@ -28,20 +28,19 @@ __handle_syscall:
     push r13
     push r14
     push r15
-
-    
-    ; the sysv exepects the args to be in rdi, rsi, rdx, rcx, r8, r9
-    ; where rdi is the syscall number and another other args are general purpose
+    ; the sysv exepects the args to be in rdi, rsi, rdx, rcx, r8, r9, [rsp]
+    ; where rax is the syscall number and another other args are general purpose
 
     ; but syscall clobbers rcx so we make usermode programs deal with amd's bullshit
     mov rcx, r10
-
+    push rax ; last param
     call dispatch_syscall
 
     xor r12, r12
     mov r12, ds
     mov r12, es
 
+    add rsp, 8
     pop r15
     pop r14
     pop r13
@@ -56,7 +55,7 @@ __handle_syscall:
     pop rcx
     pop rbx
 
-    add rsp, 8      ; remove alignment adjustment
+    ; add rsp, 8      ; remove alignment adjustment
 
 
     mov rsp, qword [r15 + 8]
