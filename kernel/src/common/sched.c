@@ -1,22 +1,24 @@
 #include <arch/cpu_local.h>
 #include <arch/hardware/fpu.h>
-#include <arch/internal/gdt.h>
 #include <arch/hardware/lapic.h>
-#include <common/arch.h>
-#include <common/interrupts.h>
-#include <common/thread.h>
-
-#include <common/handle.h>
+#include <arch/internal/gdt.h>
 #include <arch/interrupts.h>
 #include <arch/msr.h>
 #include <assert.h>
+#include <common/arch.h>
 #include <common/cpu_local.h>
-#include <memory/memory.h>
+#include <common/handle.h>
+#include <common/interrupts.h>
 #include <common/process.h>
 #include <common/sched.h>
 #include <common/spinlock.h>
+#include <common/thread.h>
+#include <memory/memory.h>
 #include <memory/vmm.h>
 #include <stdint.h>
+
+#define THREAD_STACK_SIZE_PAGES 4
+#define THREAD_KERNEL_STACK_SIZE_PAGES 4
 
 spinlock_t g_sched_lock = 0;
 extern process_t* g_proc_head;
@@ -136,7 +138,7 @@ void sched_init_bsp() {
 
 void sched_init_ap() {
     scheduler_t* sched = (scheduler_t*) vmm_alloc_object(&kernel_allocator, sizeof(scheduler_t));
-    
+
     sched->idle_thread = sched_thread_kernel_init((virt_addr_t) idle_thread);
     sched->idle_thread->thread_common.tid = 1;
 
@@ -163,6 +165,7 @@ void __userspace_init();
 
 void sched_arch_init_thread(thread_t* thread, virt_addr_t entry_point);
 
+
 thread_t* sched_thread_common_init(vm_allocator_t* address_space, virt_addr_t entry_point) {
     size_t obj_size = sizeof(thread_t);
     if(address_space->is_user) {
@@ -179,12 +182,13 @@ thread_t* sched_thread_common_init(vm_allocator_t* address_space, virt_addr_t en
     } else {
         thread->fpu_area = nullptr;
     }
-    
+
     thread->sched_next = nullptr;
     thread->proc_next = nullptr;
 
-    thread->thread_rsp = vmm_alloc_backed(address_space, 4, (address_space->is_user ? VM_ACCESS_USER : VM_ACCESS_KERNEL), VM_CACHE_NORMAL, VM_READ_WRITE, true) + (4 * PAGE_SIZE_DEFAULT) - 8;
-    thread->kernel_rsp = vmm_alloc_backed(&kernel_allocator, 4, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true) + (4 * PAGE_SIZE_DEFAULT);
+
+    thread->thread_rsp = vmm_alloc_backed(address_space, THREAD_STACK_SIZE_PAGES, (address_space->is_user ? VM_ACCESS_USER : VM_ACCESS_KERNEL), VM_CACHE_NORMAL, VM_READ_WRITE, true) + (THREAD_STACK_SIZE_PAGES * PAGE_SIZE_DEFAULT) - 8;
+    thread->kernel_rsp = vmm_alloc_backed(&kernel_allocator, THREAD_KERNEL_STACK_SIZE_PAGES, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true) + (THREAD_KERNEL_STACK_SIZE_PAGES * PAGE_SIZE_DEFAULT);
     thread->syscall_rsp = 0;
 
     sched_arch_init_thread(thread, entry_point);
