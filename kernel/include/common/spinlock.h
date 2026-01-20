@@ -11,7 +11,7 @@ static inline void spinlock_lock(spinlock_t* lock) {
     }
 }
 
-[[nodiscard]] static inline int spinlock_try_lock(spinlock_t* lock) {
+[[nodiscard]] static inline bool spinlock_try_lock(spinlock_t* lock) {
     return !__atomic_exchange_n(lock, 1, __ATOMIC_ACQUIRE);
 }
 

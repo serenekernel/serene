@@ -6,9 +6,9 @@
 #include <string.h>
 
 typedef struct {
-    // @todo: atmoics
     bool cpu_exists;
-    bool ipi_pending;
+    spinlock_t ipi_lock;
+    volatile bool ipi_pending;
     ipi_t ipi;
 } ipi_meta_t;
 
@@ -40,11 +40,10 @@ void ipi_init_ap() {
 void ipi_set(uint32_t cpu_id, ipi_t* ipi) {
     assert(g_ipi_table != nullptr && "IPI table not initialized before setting IPI");
     assert(g_ipi_table[cpu_id].cpu_exists == true && "Setting IPI to non-existent CPU");
-
-    while(g_ipi_table[cpu_id].ipi_pending) {
-    }
-
+    printf("Setting IPI on %d\n", cpu_id);
+    spinlock_lock(&g_ipi_table[cpu_id].ipi_lock);
     memcpy(&g_ipi_table[cpu_id].ipi, ipi, sizeof(ipi_t));
+    g_ipi_table[cpu_id].ipi_pending = true;
 }
 
 void ipi_send_async(uint32_t cpu_id, ipi_t* ipi) {
@@ -65,9 +64,11 @@ void ipi_send(uint32_t cpu_id, ipi_t* ipi) {
     ipi_set(cpu_id, ipi);
     arch_ipi_send_raw(cpu_id);
 
-    // wait for IPI to be handled
-    while(g_ipi_table[cpu_id].ipi_pending) {
-    }
+    // @note: since we lock the pending in ipi_set, and it's unlocked in ipi_handle,
+    // we can just lock it here to wait for the IPI to be handled.
+    // cursed: yes, works: also yes
+    spinlock_lock(&g_ipi_table[cpu_id].ipi_lock);
+    spinlock_unlock(&g_ipi_table[cpu_id].ipi_lock);
 
     spinlock_unlock(&g_ipi_lock);
 }
@@ -87,8 +88,8 @@ void ipi_broadcast_async(ipi_t* ipi) {
     }
     spinlock_lock(&g_ipi_lock);
     ipi_broadcast_raw(ipi);
-    spinlock_unlock(&g_ipi_lock);
     arch_ipi_broadcast_raw();
+    spinlock_unlock(&g_ipi_lock);
 }
 
 void ipi_broadcast(ipi_t* ipi) {
@@ -104,8 +105,12 @@ void ipi_broadcast(ipi_t* ipi) {
         if(i == arch_get_core_id() || g_ipi_table[i].cpu_exists == false) {
             continue;
         }
-        while(g_ipi_table[i].ipi_pending) {
-        }
+
+        // @note: since we lock the pending in ipi_set, and it's unlocked in ipi_handle,
+        // we can just lock it here to wait for the IPI to be handled.
+        // cursed: yes, works: also yes
+        spinlock_lock(&g_ipi_table[i].ipi_lock);
+        spinlock_unlock(&g_ipi_table[i].ipi_lock);
     }
     spinlock_unlock(&g_ipi_lock);
 }
@@ -113,6 +118,7 @@ void ipi_broadcast(ipi_t* ipi) {
 void ipi_handle() {
     assert(g_ipi_table != nullptr && "IPI table not initialized before setting IPI");
     assert(g_ipi_table[arch_get_core_id()].cpu_exists == true && "Setting IPI to non-existent CPU");
+    printf("%d %d\n", arch_get_core_id(), g_ipi_table[arch_get_core_id()].ipi_pending);
     assert(g_ipi_table[arch_get_core_id()].ipi_pending == true && "Processing IPI when none is pending");
     ipi_t* ipi = &g_ipi_table[arch_get_core_id()].ipi;
 
@@ -125,6 +131,7 @@ void ipi_handle() {
     }
 
     g_ipi_table[arch_get_core_id()].ipi_pending = false;
+    spinlock_unlock(&g_ipi_table[arch_get_core_id()].ipi_lock);
 }
 
 void ipi_ack(uint32_t cpu_id) {
