@@ -1,3 +1,5 @@
+#include "arch/internal/cpuid.h"
+
 #include <arch/hardware/fpu.h>
 #include <arch/hardware/lapic.h>
 #include <arch/internal/cr.h>
@@ -47,19 +49,38 @@ void arch_pause() {
 }
 
 
+bool arch_uap_supported() {
+    static bool checked = false;
+    static bool supported = false;
+    if(!checked) {
+        supported = (__cpuid_get_feature_value(CPUID_FEATURE_SMAP) != 0);
+        checked = true;
+    }
+    return supported;
+}
+
 void __set_uap(bool value) {
+    if(!arch_uap_supported()) {
+        return;
+    }
     arch_memory_barrier();
 
+    // @note: AC flag is inverted for enabling/disabling access checks
+    // clear = enable access check
+    // set = disable access check
     if(value) {
-        __asm__ volatile("stac");
-    } else {
         __asm__ volatile("clac");
+    } else {
+        __asm__ volatile("stac");
     }
 
     arch_memory_barrier();
 }
 
 bool arch_get_uap() {
+    if(!arch_uap_supported()) {
+        return false;
+    }
     // read rflags
     uint64_t rflags;
     __asm__ volatile("pushfq\n" "pop %0" : "=r"(rflags));
@@ -67,13 +88,18 @@ bool arch_get_uap() {
 }
 
 bool arch_disable_uap() {
+    if(!arch_uap_supported()) {
+        return false;
+    }
     bool prev = arch_get_uap();
-    // set to disable access check we need to set it... ugh
-    __set_uap(true);
+    __set_uap(false);
     return prev;
 }
 
 void arch_restore_uap(bool __prev) {
+    if(!arch_uap_supported()) {
+        return;
+    }
     __set_uap(__prev);
 }
 
@@ -100,8 +126,18 @@ void setup_memory() {
 
     arch_memory_barrier();
     uint64_t cr4 = __read_cr4();
-    cr4 |= (1 << 20); // Enable SMEP
-    cr4 |= (1 << 21); // Enable SMAP
+    if(__cpuid_get_feature_value(CPUID_FEATURE_SMEP)) {
+        cr4 |= (1 << 20); // Enable SMEP
+        printf("SMEP: supported\n");
+    } else {
+        printf("SMEP: not supported\n");
+    }
+    if(arch_uap_supported()) {
+        printf("SMAP: supported\n");
+        cr4 |= (1 << 21); // Enable SMAP
+    } else {
+        printf("SMAP: not supported\n");
+    }
     __write_cr4(cr4);
     arch_memory_barrier();
     uint64_t cr0 = __read_cr0();

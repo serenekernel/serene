@@ -1,5 +1,5 @@
-#include <arch/internal/gdt.h>
 #include <arch/hardware/lapic.h>
+#include <arch/internal/gdt.h>
 #include <common/arch.h>
 #include <common/interrupts.h>
 #include <common/ipi.h>
@@ -66,7 +66,8 @@ void setup_interrupts_ap() {
 
 
 void x86_64_dispatch_interupt(interrupt_frame_t* frame) {
-    (void) frame;
+    arch_restore_uap(true);
+
     if(frame->vector != 0x20) {
         printf("Interrupt received: 0x%02X on lapic %u\n", frame->vector, lapic_get_id());
     }
