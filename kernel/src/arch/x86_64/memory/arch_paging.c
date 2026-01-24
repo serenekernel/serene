@@ -9,6 +9,7 @@
 #include <memory/pmm.h>
 #include <memory/vmm.h>
 #include <rbtree.h>
+#include <stdint.h>
 #include <string.h>
 
 typedef struct {
@@ -140,6 +141,31 @@ uint64_t* next_if_exists(uint64_t* root, int idx) {
     return (uint64_t*) TO_HHDM(next_table_phys);
 }
 
+uint64_t* walk_and_allocate(vm_allocator_t* allocator, virt_addr_t virt_addr, uint64_t imtermediate_flags) {
+    uint64_t* pml4 = (uint64_t*) TO_HHDM(allocator->kernel_paging_structures_base);
+    uint64_t* pdpt = next_or_allocate(pml4, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PML4), imtermediate_flags);
+    uint64_t* pd = next_or_allocate(pdpt, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PDPT), imtermediate_flags);
+    uint64_t* pt = next_or_allocate(pd, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PD), imtermediate_flags);
+    return pt;
+}
+
+uint64_t* walk_if_exists(vm_allocator_t* allocator, virt_addr_t virt_addr) {
+    uint64_t* pml4 = (uint64_t*) TO_HHDM(allocator->kernel_paging_structures_base);
+    uint64_t* pdpt = next_if_exists(pml4, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PML4));
+    if(pdpt == NULL) {
+        return NULL;
+    }
+    uint64_t* pd = next_if_exists(pdpt, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PDPT));
+    if(pd == NULL) {
+        return NULL;
+    }
+    uint64_t* pt = next_if_exists(pd, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PD));
+    if(pt == NULL) {
+        return NULL;
+    }
+    return pt;
+}
+
 void vm_map_pages_continuous(vm_allocator_t* allocator, virt_addr_t virt_addr, phys_addr_t phys_addr, size_t page_count, vm_access_t access, vm_cache_t cache, vm_flags_t flags) {
     for(size_t i = 0; i < page_count; i++) {
         vm_map_page(allocator, virt_addr + (i * PAGE_SIZE_DEFAULT), phys_addr + (i * PAGE_SIZE_DEFAULT), access, cache, flags);
@@ -165,11 +191,7 @@ void vm_map_page(vm_allocator_t* allocator, virt_addr_t virt_addr, phys_addr_t p
         imtermediate_flags |= PAGE_USER_BIT;
     }
 
-    uint64_t* pml4 = (uint64_t*) TO_HHDM(allocator->kernel_paging_structures_base);
-
-    uint64_t* pdpt = next_or_allocate(pml4, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PML4), imtermediate_flags);
-    uint64_t* pd = next_or_allocate(pdpt, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PDPT), imtermediate_flags);
-    uint64_t* pt = next_or_allocate(pd, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PD), imtermediate_flags);
+    uint64_t* pt = walk_and_allocate(allocator, virt_addr, imtermediate_flags);
     uint64_t page_entry = (phys_addr & SMALL_PAGE_ADDRESS_MASK) | (flags_data.present ? PAGE_PRESENT_BIT : 0) | (flags_data.write ? PAGE_RW_BIT : 0) | convert_access_flags(access) | convert_cache_flags(cache, PAGE_SIZE_SMALL);
 
     uint16_t pt_index = (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PT);
@@ -185,11 +207,7 @@ void vm_reprotect_page(vm_allocator_t* allocator, virt_addr_t virt_addr, vm_acce
         imtermediate_flags |= PAGE_USER_BIT;
     }
 
-    uint64_t* pml4 = (uint64_t*) TO_HHDM(allocator->kernel_paging_structures_base);
-
-    uint64_t* pdpt = next_or_allocate(pml4, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PML4), imtermediate_flags);
-    uint64_t* pd = next_or_allocate(pdpt, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PDPT), imtermediate_flags);
-    uint64_t* pt = next_or_allocate(pd, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PD), imtermediate_flags);
+    uint64_t* pt = walk_and_allocate(allocator, virt_addr, imtermediate_flags);
     uint64_t page_new_flags = (flags_data.present ? PAGE_PRESENT_BIT : 0) | (flags_data.write ? PAGE_RW_BIT : 0) | convert_access_flags(access) | convert_cache_flags(cache, PAGE_SIZE_SMALL);
 
     uint64_t old_entry = pt[(uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PT)];
@@ -200,19 +218,7 @@ void vm_reprotect_page(vm_allocator_t* allocator, virt_addr_t virt_addr, vm_acce
 }
 
 phys_addr_t vm_resolve(vm_allocator_t* allocator, virt_addr_t virt_addr) {
-    uint64_t* pml4 = (uint64_t*) TO_HHDM(allocator->kernel_paging_structures_base);
-
-    uint64_t* pdpt = next_if_exists(pml4, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PML4));
-    if(pdpt == NULL) {
-        return 0;
-    }
-
-    uint64_t* pd = next_if_exists(pdpt, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PDPT));
-    if(pd == NULL) {
-        return 0;
-    }
-
-    uint64_t* pt = next_if_exists(pd, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PD));
+    uint64_t* pt = walk_if_exists(allocator, virt_addr);
     if(pt == NULL) {
         return 0;
     }
@@ -226,19 +232,7 @@ phys_addr_t vm_resolve(vm_allocator_t* allocator, virt_addr_t virt_addr) {
 }
 
 phys_addr_t vm_resolve_protections(vm_allocator_t* allocator, virt_addr_t virt_addr, vm_flags_t* out_protection) {
-    uint64_t* pml4 = (uint64_t*) TO_HHDM(allocator->kernel_paging_structures_base);
-
-    uint64_t* pdpt = next_if_exists(pml4, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PML4));
-    if(pdpt == NULL) {
-        return 0;
-    }
-
-    uint64_t* pd = next_if_exists(pdpt, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PDPT));
-    if(pd == NULL) {
-        return 0;
-    }
-
-    uint64_t* pt = next_if_exists(pd, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PD));
+    uint64_t* pt = walk_if_exists(allocator, virt_addr);
     if(pt == NULL) {
         return 0;
     }
@@ -267,19 +261,7 @@ phys_addr_t vm_resolve_protections(vm_allocator_t* allocator, virt_addr_t virt_a
 
 void vm_unmap_page(vm_allocator_t* allocator, virt_addr_t virt_addr) {
     arch_memory_barrier();
-    uint64_t* pml4 = (uint64_t*) TO_HHDM(allocator->kernel_paging_structures_base);
-
-    uint64_t* pdpt = next_if_exists(pml4, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PML4));
-    if(pdpt == NULL) {
-        return;
-    }
-
-    uint64_t* pd = next_if_exists(pdpt, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PDPT));
-    if(pd == NULL) {
-        return;
-    }
-
-    uint64_t* pt = next_if_exists(pd, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PD));
+    uint64_t* pt = walk_if_exists(allocator, virt_addr);
     if(pt == NULL) {
         return;
     }
@@ -421,19 +403,7 @@ bool vm_handle_page_fault(vm_fault_reason_t reason, virt_addr_t fault_address) {
 
 void vm_remap_page(vm_allocator_t* allocator, virt_addr_t virt_addr, phys_addr_t new_phys_addr) {
     arch_memory_barrier();
-    uint64_t* pml4 = (uint64_t*) TO_HHDM(allocator->kernel_paging_structures_base);
-
-    uint64_t* pdpt = next_if_exists(pml4, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PML4));
-    if(pdpt == NULL) {
-        return;
-    }
-
-    uint64_t* pd = next_if_exists(pdpt, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PDPT));
-    if(pd == NULL) {
-        return;
-    }
-
-    uint64_t* pt = next_if_exists(pd, (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PD));
+    uint64_t* pt = walk_if_exists(allocator, virt_addr);
     if(pt == NULL) {
         return;
     }
