@@ -186,9 +186,8 @@ thread_t* sched_thread_common_init(vm_allocator_t* address_space, virt_addr_t en
     thread->sched_next = nullptr;
     thread->proc_next = nullptr;
 
-
     thread->thread_rsp = vmm_alloc_backed(address_space, THREAD_STACK_SIZE_PAGES, (address_space->is_user ? VM_ACCESS_USER : VM_ACCESS_KERNEL), VM_CACHE_NORMAL, VM_READ_WRITE, true) + (THREAD_STACK_SIZE_PAGES * PAGE_SIZE_DEFAULT) - 8;
-    thread->kernel_rsp = vmm_alloc_backed(&kernel_allocator, THREAD_KERNEL_STACK_SIZE_PAGES, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true) + (THREAD_KERNEL_STACK_SIZE_PAGES * PAGE_SIZE_DEFAULT);
+    thread->kernel_rsp = vmm_alloc_backed(&kernel_allocator, THREAD_KERNEL_STACK_SIZE_PAGES, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true) + THREAD_KERNEL_STACK_SIZE_PAGES * PAGE_SIZE_DEFAULT;
     thread->syscall_rsp = 0;
 
     sched_arch_init_thread(thread, entry_point);

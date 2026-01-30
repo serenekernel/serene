@@ -153,7 +153,7 @@ __attribute__((noreturn)) void arch_panic_int(interrupt_frame_t* frame) {
             break;
         }
 
-        if(stack_frame_ptr < 0xffffffff80000000) {
+        if(stack_frame_ptr < (virt_addr_t) 0xffffffff80000000ULL) {
             printf("  0x%016llx <userspace>\n", stack_frame_ptr);
             break;
         }

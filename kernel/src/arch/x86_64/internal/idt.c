@@ -33,7 +33,7 @@ void set_idtr_entry(int vector, void (*isr)(), uint8_t type_attr, int ist) {
     idt[vector] = (idt_entry_t) { .base_low = isr_addr & 0xFFFF, .base_mid = (isr_addr >> 16) & 0xFFFF, .selector = 0x08, .ist = ist, .type_attr = type_attr, .base_high = (isr_addr >> 32) & 0xFFFFFFFF };
 }
 
-void setup_interrupts_bsp() {
+void setup_idt_bsp() {
     idtr_t idtr;
     idtr.limit = (sizeof(idt_entry_t) * 256) - 1;
     idtr.base = (virt_addr_t) &idt;
@@ -56,7 +56,7 @@ void setup_interrupts_bsp() {
     __load_idt(&idtr);
 }
 
-void setup_interrupts_ap() {
+void setup_idt_ap() {
     idtr_t idtr;
     idtr.limit = (sizeof(idt_entry_t) * 256) - 1;
     idtr.base = (virt_addr_t) &idt;
@@ -64,8 +64,7 @@ void setup_interrupts_ap() {
     __load_idt(&idtr);
 }
 
-
-void x86_64_dispatch_interupt(interrupt_frame_t* frame) {
+void x86_64_dispatch_interrupt(interrupt_frame_t* frame) {
     arch_restore_uap(true);
 
     if(frame->vector != 0x20) {

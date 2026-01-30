@@ -1,4 +1,5 @@
 #pragma once
+#include <memory/memory.h>
 #include <stdint.h>
 
 typedef struct {
@@ -7,3 +8,8 @@ typedef struct {
     uint64_t vector, error;
     uint64_t rip, cs, rflags, rsp, ss;
 } interrupt_frame_t;
+
+// Sets the stack to be used when being interrupted from ring 3
+
+void x86_64_set_rsp0_stack(virt_addr_t stack);
+bool x86_64_fred_enabled();

@@ -149,7 +149,6 @@ void setup_memory() {
 
 void setup_arch() {
     init_cpu_local();
-
     setup_gdt();
     printf("GDT INIT OK!\n");
 

@@ -37,14 +37,7 @@ __context_switch:
     sti
     ret
 
-; void __userspace_init();
-global __userspace_init
-__userspace_init:
-    cli
-    swapgs
-
-    ; setup fpu
-    
+__userspace_exit_common:
     ; INTEL WHY DID YOU MAKE THIS TAKE A MEMORY OPERAND ONLY
     mov rcx, (1 << 0) | (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 5) | (0b11 << 8)
     push rcx 
@@ -54,17 +47,13 @@ __userspace_init:
     push rcx
     ldmxcsr [rsp]
 
-    ; clean up fpu setup stack
-    add rsp, 16
-
     pop rcx ; address to sysret to
     pop rax ; userspace stack pointer
-    mov rsp, rax
 
     ; bye bye regs
     ; @note: we don't bother clearing rbx, rbp, r12, r13, r14, r15 
     ; because they should be cleared by the context switch
-    xor rax, rax
+    ; we also don't clear rax because it's going to be used for sysret & fred
 	xor rdx, rdx
 	xor rsi, rsi
 	xor rdi, rdi
@@ -73,7 +62,33 @@ __userspace_init:
 	xor r10, r10
 
     mov r11, 0x202 ; interrupts enabled
+    ret
+
+; void __userspace_init_sysexit();
+global __userspace_init_sysexit
+__userspace_init_sysexit:
+    cli
+    call __userspace_exit_common
+    mov rsp, rax
+    xor rax, rax
+    swapgs
     o64 sysret
+
+; void __userspace_init_fred();
+global __userspace_init_fred
+__userspace_init_fred:
+    cli
+    call __userspace_exit_common
+
+    push qword 0x20 | 3
+    push qword rax
+    push qword r11
+    push qword 0x28 | 3
+    push qword rcx
+    push qword 0
+
+    xor rax, rax
+    eretu
 
 ; void __jump_to_idle_thread(virt_addr_t stack_ptr, virt_addr_t entry_point);
 ; stack_ptr in rdi (points to prepared context switch frame)

@@ -1,6 +1,6 @@
 section .text
 global __load_idt
-extern x86_64_dispatch_interupt
+extern x86_64_dispatch_interrupt
 __load_idt:
    lidt [rdi]
    ret
@@ -50,7 +50,7 @@ handler_common:
     push r15
 
     mov rdi, rsp
-    call x86_64_dispatch_interupt
+    call x86_64_dispatch_interrupt
 
     pop r15
     pop r14

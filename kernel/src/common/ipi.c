@@ -19,12 +19,14 @@ size_t g_cpu_count;
 void arch_ipi_send_raw(uint32_t cpu_id);
 void arch_ipi_broadcast_raw();
 
-void ipi_init_bsp(size_t cpu_count) {
+void ipi_init_bsp(size_t highest_lapic_id) {
     assert(arch_is_bsp() && "IPI BSP init called on AP");
     g_ipi_lock = 0;
-    size_t total_size = ALIGN_UP(sizeof(ipi_meta_t) * cpu_count, PAGE_SIZE_DEFAULT) / PAGE_SIZE_DEFAULT;
+
+    size_t total_size = ALIGN_UP(sizeof(ipi_meta_t) * (highest_lapic_id + 1), PAGE_SIZE_DEFAULT) / PAGE_SIZE_DEFAULT;
+    printf("Allocating IPI table for %zu CPUs (%zu pages)\n", (highest_lapic_id + 1), total_size);
     g_ipi_table = (ipi_meta_t*) vmm_alloc_backed(&kernel_allocator, total_size, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true);
-    g_cpu_count = cpu_count;
+    g_cpu_count = (highest_lapic_id + 1);
 
     g_ipi_table[arch_get_core_id()].cpu_exists = true;
 }

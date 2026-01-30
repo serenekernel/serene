@@ -20,11 +20,18 @@
 #define IA32_EFER 0xC0000080
 
 // syscall stuff
-#define IA32_STAR   0xC0000081
-#define IA32_LSTAR  0xC0000082
-#define IA32_CSTAR  0xC0000083
+#define IA32_STAR 0xC0000081
+#define IA32_LSTAR 0xC0000082
+#define IA32_CSTAR 0xC0000083
 #define IA32_SFMASK 0xC0000084
 
+// fred
+#define IA32_FRED_CONFIG 0x000001D4
+#define IA32_FRED_RSP0 0x000001CC
+#define IA32_FRED_RSP1 0x000001CD
+#define IA32_FRED_RSP2 0x000001CE
+#define IA32_FRED_RSP3 0x000001CF
+#define IA32_FRED_STACK_LEVELS 0x000001D0
 
 [[nodiscard]] uint64_t __rdmsr(uint32_t msr);
 void __wrmsr(uint32_t msr, uint64_t value);
