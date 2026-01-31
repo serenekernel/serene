@@ -62,9 +62,24 @@ void reaper_thread() {
                     printf("to_reap->kernel_rsp: 0x%llx\n", to_reap->kernel_rsp);
                     printf("to_reap: 0x%llx\n", to_reap);
 
-                    vmm_free(to_reap->thread_common.address_space, to_reap->thread_rsp);
-                    vmm_free(&kernel_allocator, to_reap->kernel_rsp);
-                    vmm_free(&kernel_allocator, (virt_addr_t) to_reap);
+                    // Save pointers before releasing lock
+                    vm_allocator_t* thread_addr_space = to_reap->thread_common.address_space;
+                    virt_addr_t thread_rsp = to_reap->thread_rsp;
+                    virt_addr_t kernel_rsp = to_reap->kernel_rsp;
+                    virt_addr_t thread_ptr = (virt_addr_t) to_reap;
+                    uint32_t tid = to_reap->thread_common.tid;
+
+                    // Release lock before calling vmm_free (which can trigger IPIs and wait for other CPUs)
+                    spinlock_critical_unlock(&g_sched_lock, __spin_flags);
+
+                    vmm_free(thread_addr_space, thread_rsp);
+                    vmm_free(&kernel_allocator, kernel_rsp);
+                    vmm_free(&kernel_allocator, thread_ptr);
+                    printf("Reaped thread TID %u\n", tid);
+
+                    // Re-acquire lock and restart scan from head since we released the lock
+                    __spin_flags = spinlock_critical_lock(&g_sched_lock);
+                    break; // restart from head
                 } else {
                     prev = current;
                     current = (thread_t*) current->sched_next;
@@ -92,8 +107,20 @@ void reaper_thread() {
 
                     current = (process_t*) to_reap->next;
 
-                    vmm_destory_allocator(to_reap->address_space);
-                    vmm_free(&kernel_allocator, (virt_addr_t) to_reap);
+                    // Save pointers before releasing lock
+                    vm_allocator_t* proc_addr_space = to_reap->address_space;
+                    virt_addr_t proc_ptr = (virt_addr_t) to_reap;
+                    uint32_t pid = to_reap->pid;
+
+                    // Release lock before calling vmm_destory_allocator (which calls vmm_free and triggers IPIs)
+                    spinlock_critical_unlock(&g_sched_lock, __spin_flags);
+
+                    vmm_destory_allocator(proc_addr_space);
+                    vmm_free(&kernel_allocator, proc_ptr);
+                    printf("Reaped process PID %u\n", pid);
+
+                    // Re-acquire lock and restart from head
+                    __spin_flags = spinlock_critical_lock(&g_sched_lock);
                     break; // restart from head
                 } else {
                     current = (process_t*) current->next;
