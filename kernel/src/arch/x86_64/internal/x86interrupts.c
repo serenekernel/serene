@@ -1,3 +1,5 @@
+#include "arch/interrupts.h"
+
 #include <arch/hardware/lapic.h>
 #include <arch/internal/cpuid.h>
 #include <arch/internal/gdt.h>
@@ -50,4 +52,43 @@ void x86_64_set_rsp0_stack(virt_addr_t stack) {
 
 bool x86_64_fred_enabled() {
     return fred_enabled;
+}
+
+void x86_64_dispatch_interrupt(interrupt_frame_t* frame) {
+    arch_restore_uap(true);
+
+    if(frame->vector != 0x20) {
+        printf("Interrupt received: 0x%02X on lapic %u\n", frame->vector, lapic_get_id());
+    }
+
+    if(frame->vector < 0x20 && frame->vector != 0x03) {
+        if(frame->vector == 0x0E) {
+            vm_fault_reason_t reason = VM_FAULT_UKKNOWN;
+            if((frame->error & (1 << 0)) == 0) {
+                reason = VM_FAULT_NOT_PRESENT;
+            }
+            if(vm_handle_page_fault(reason, __read_cr2())) {
+                return;
+            }
+        }
+        arch_panic_int(frame);
+    }
+
+    if(frame->vector == 0xf0) {
+        ipi_handle();
+        lapic_eoi();
+        return;
+    }
+
+    if(interrupt_handlers[frame->vector]) {
+        void (*handler)(interrupt_frame_t*) = (void (*)(interrupt_frame_t*)) interrupt_handlers[frame->vector];
+        handler(frame);
+    } else {
+        printf("Unhandled interrupt: 0x%02X\n", frame->vector);
+    }
+
+    // @note: we don't send an for 0x20 as the scheduler handles that
+    if(frame->vector != 0x20) {
+        lapic_eoi();
+    }
 }

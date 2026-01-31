@@ -1,3 +1,4 @@
+#include "arch/interrupts.h"
 #include "common/ipi.h"
 
 #include <arch/cpu_local.h>
@@ -104,25 +105,34 @@ __attribute__((noreturn)) void arch_panic_int(interrupt_frame_t* frame) {
     } else {
         printf("unknown (0x%x | %d)\n", frame->vector, frame->error);
     }
-    printf("Core: %d | Ring: %d\n", apic_id, (frame->cs & 0b11));
-    if((frame->cs & 0b11) == 3) {
+    printf("Core: %d | Usermode: %d\n", apic_id, frame->is_user);
+    if(frame->is_user) {
         thread_t* current_thread = CPU_LOCAL_READ(current_thread);
         printf("In userspace process %d:%d\n", current_thread->thread_common.process->pid, current_thread->thread_common.tid);
     }
     printf("\n");
-    printf("rax = 0x%016llx, rbx = 0x%016llx\n", frame->rax, frame->rbx);
-    printf("rcx = 0x%016llx, rdx = 0x%016llx\n", frame->rcx, frame->rdx);
-    printf("rsi = 0x%016llx, rdi = 0x%016llx\n", frame->rsi, frame->rdi);
-    printf("r8  = 0x%016llx, r9  = 0x%016llx\n", frame->r8, frame->r9);
-    printf("r10 = 0x%016llx, r11 = 0x%016llx\n", frame->r10, frame->r11);
-    printf("r12 = 0x%016llx, r13 = 0x%016llx\n", frame->r12, frame->r13);
-    printf("r14 = 0x%016llx, r15 = 0x%016llx\n", frame->r14, frame->r15);
+    regs_t* regs = frame->regs;
+    printf("rax = 0x%016llx, rbx = 0x%016llx\n", regs->rax, regs->rbx);
+    printf("rcx = 0x%016llx, rdx = 0x%016llx\n", regs->rcx, regs->rdx);
+    printf("rsi = 0x%016llx, rdi = 0x%016llx\n", regs->rsi, regs->rdi);
+    printf("r8  = 0x%016llx, r9  = 0x%016llx\n", regs->r8, regs->r9);
+    printf("r10 = 0x%016llx, r11 = 0x%016llx\n", regs->r10, regs->r11);
+    printf("r12 = 0x%016llx, r13 = 0x%016llx\n", regs->r12, regs->r13);
+    printf("r14 = 0x%016llx, r15 = 0x%016llx\n", regs->r14, regs->r15);
 
     printf("\n");
-    printf("cs  = 0x%016llx, rip = 0x%016llx\n", frame->cs, frame->rip);
-    printf("ss  = 0x%016llx, rsp = 0x%016llx\n", frame->ss, frame->rsp);
-    printf("rbp = 0x%016llx, rflags = 0x%016llx\n", frame->rbp, frame->rflags);
-    printf("error = 0x%016llx\n", frame->error);
+    if(x86_64_fred_enabled()) {
+        fred_frame_t* fred_frame = (fred_frame_t*) frame->internal_frame;
+        printf("cs  = 0x%016llx, rip = 0x%016llx\n", fred_frame->cs, fred_frame->rip);
+        printf("ss  = 0x%016llx, rsp = 0x%016llx\n", fred_frame->ss, fred_frame->rsp);
+        printf("rbp = 0x%016llx, rflags = 0x%016llx\n", frame->regs->rbp, fred_frame->rflags);
+    } else {
+        idt_frame_t* idt_frame = (idt_frame_t*) frame->internal_frame;
+        printf("cs  = 0x%016llx, rip = 0x%016llx\n", idt_frame->cs, idt_frame->rip);
+        printf("ss  = 0x%016llx, rsp = 0x%016llx\n", idt_frame->ss, idt_frame->rsp);
+        printf("rbp = 0x%016llx, rflags = 0x%016llx\n", frame->regs->rbp, idt_frame->rflags);
+    }
+    printf("error = 0x%016llx, interrupt data = 0x%016llx\n", frame->error, frame->interrupt_data);
 
     uint64_t cr0 = __read_cr0();
     uint64_t cr2 = __read_cr2();
@@ -146,7 +156,7 @@ __attribute__((noreturn)) void arch_panic_int(interrupt_frame_t* frame) {
 
     arch_disable_uap();
 
-    virt_addr_t stack_frame_ptr = frame->rbp;
+    virt_addr_t stack_frame_ptr = frame->regs->rbp;
     printf("\nStack backtrace:\n");
     for(int i = 0; i < 16; i++) {
         if(stack_frame_ptr == 0) {

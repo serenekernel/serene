@@ -9,15 +9,6 @@
 #include <lib/assert.h>
 #include <memory/memory.h>
 
-typedef struct fred_frame {
-    uint64_t r15, r14, r13, r12, r11, r10, r9, r8;
-    uint64_t rbp, rdi, rsi, rdx, rcx, rbx, rax;
-    uint64_t error, rip, cs, rflags, rsp, ss;
-    uint64_t fred_event_data;
-    uint64_t fred_reserved;
-} fred_frame_t;
-
-
 extern void x86_64_fred_ring3_entry_stub();
 
 void setup_fred_bsp() {
@@ -43,78 +34,35 @@ void setup_fred_ap() {
 extern syscall_ret_t dispatch_syscall(uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4, uint64_t arg5, uint64_t arg6, syscall_nr_t syscall_nr);
 extern void x86_64_dispatch_interrupt(interrupt_frame_t* frame);
 
-// @note: for now this is a compat thing where we convert fred_frame_t to interrupt_frame_t
-void convert_from_fred(interrupt_frame_t* dest, fred_frame_t* source) {
-    uint8_t vector = (source->ss >> 32) & 0xFF;
-    dest->vector = vector;
-    dest->rax = source->rax;
-    dest->rbx = source->rbx;
-    dest->rcx = source->rcx;
-    dest->rdx = source->rdx;
-    dest->rsi = source->rsi;
-    dest->rdi = source->rdi;
-    dest->rbp = source->rbp;
-    dest->rsp = source->rsp;
-    dest->r8 = source->r8;
-    dest->r9 = source->r9;
-    dest->r10 = source->r10;
-    dest->r11 = source->r11;
-    dest->r12 = source->r12;
-    dest->r13 = source->r13;
-    dest->r14 = source->r14;
-    dest->r15 = source->r15;
-
-    dest->rip = source->rip;
-    dest->cs = source->cs;
-    dest->rflags = source->rflags;
-    dest->rsp = source->rsp;
-    dest->ss = source->ss & 0xFFFF;
-    dest->error = source->error;
-}
-void convert_to_fred(fred_frame_t* dest, interrupt_frame_t* source) {
-    dest->rax = source->rax;
-    dest->rbx = source->rbx;
-    dest->rcx = source->rcx;
-    dest->rdx = source->rdx;
-    dest->rsi = source->rsi;
-    dest->rdi = source->rdi;
-    dest->rbp = source->rbp;
-    dest->rsp = source->rsp;
-    dest->r8 = source->r8;
-    dest->r9 = source->r9;
-    dest->r10 = source->r10;
-    dest->r11 = source->r11;
-    dest->r12 = source->r12;
-    dest->r13 = source->r13;
-    dest->r14 = source->r14;
-    dest->r15 = source->r15;
-
-    dest->rip = source->rip;
-    dest->cs = source->cs;
-    dest->rflags = source->rflags;
-    dest->rsp = source->rsp;
-    // dest->ss = source->ss; // @note: ss also contains the vector/type info so omited
-    dest->error = source->error;
-}
-
 void x86_64_fred_entry_ring3(fred_frame_t* frame) {
     uint8_t type = (frame->ss >> 48) & 0xF;
 
     if(type == 7) {
-        dispatch_syscall(frame->rdi, frame->rsi, frame->rdx, frame->rcx, frame->r8, frame->r9, (syscall_nr_t) frame->rax);
+        dispatch_syscall(frame->regs.rdi, frame->regs.rsi, frame->regs.rdx, frame->regs.rcx, frame->regs.r8, frame->regs.r9, (syscall_nr_t) frame->regs.rax);
     } else {
-        // @note: for now this is a compat thing where we convert fred_frame_t to interrupt_frame_t
-        interrupt_frame_t new_frame;
-        convert_from_fred(&new_frame, frame);
-        x86_64_dispatch_interrupt(&new_frame);
-        convert_to_fred(frame, &new_frame);
+        uint8_t vector = (frame->ss >> 32) & 0xFF;
+        interrupt_frame_t interrupt_frame;
+        interrupt_frame.vector = vector;
+        interrupt_frame.error = frame->error;
+        interrupt_frame.interrupt_data = frame->fred_event_data;
+        interrupt_frame.is_user = true;
+        interrupt_frame.internal_frame = (void*) frame;
+        interrupt_frame.regs = &frame->regs;
+
+        x86_64_dispatch_interrupt(&interrupt_frame);
     }
 }
 
 
 void x86_64_fred_entry_ring0(fred_frame_t* frame) {
-    interrupt_frame_t new_frame;
-    convert_from_fred(&new_frame, frame);
-    x86_64_dispatch_interrupt(&new_frame);
-    convert_to_fred(frame, &new_frame);
+    uint8_t vector = (frame->ss >> 32) & 0xFF;
+    interrupt_frame_t interrupt_frame;
+    interrupt_frame.vector = vector;
+    interrupt_frame.error = frame->error;
+    interrupt_frame.interrupt_data = frame->fred_event_data;
+    interrupt_frame.is_user = false;
+    interrupt_frame.internal_frame = (void*) frame;
+    interrupt_frame.regs = &frame->regs;
+
+    x86_64_dispatch_interrupt(&interrupt_frame);
 }

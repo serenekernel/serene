@@ -1,3 +1,5 @@
+#include "arch/internal/cr.h"
+
 #include <arch/hardware/lapic.h>
 #include <arch/internal/gdt.h>
 #include <common/arch.h>
@@ -64,41 +66,20 @@ void setup_idt_ap() {
     __load_idt(&idtr);
 }
 
-void x86_64_dispatch_interrupt(interrupt_frame_t* frame) {
-    arch_restore_uap(true);
+extern void x86_64_dispatch_interrupt(interrupt_frame_t* frame);
 
-    if(frame->vector != 0x20) {
-        printf("Interrupt received: 0x%02X on lapic %u\n", frame->vector, lapic_get_id());
-    }
-
-    if(frame->vector < 0x20 && frame->vector != 0x03) {
-        if(frame->vector == 0x0E) {
-            vm_fault_reason_t reason = VM_FAULT_UKKNOWN;
-            if((frame->error & (1 << 0)) == 0) {
-                reason = VM_FAULT_NOT_PRESENT;
-            }
-            if(vm_handle_page_fault(reason, __read_cr2())) {
-                return;
-            }
-        }
-        arch_panic_int(frame);
-    }
-
-    if(frame->vector == 0xf0) {
-        ipi_handle();
-        lapic_eoi();
-        return;
-    }
-
-    if(interrupt_handlers[frame->vector]) {
-        void (*handler)(interrupt_frame_t*) = (void (*)(interrupt_frame_t*)) interrupt_handlers[frame->vector];
-        handler(frame);
+void x86_64_idt_entry(idt_frame_t* frame) {
+    interrupt_frame_t interrupt_frame;
+    interrupt_frame.vector = frame->vector;
+    interrupt_frame.error = frame->error;
+    if(frame->vector == 0x0E) {
+        interrupt_frame.interrupt_data = __read_cr2();
     } else {
-        printf("Unhandled interrupt: 0x%02X\n", frame->vector);
+        interrupt_frame.interrupt_data = 0;
     }
+    interrupt_frame.regs = &frame->regs;
+    interrupt_frame.is_user = (frame->cs & 0x3) == 3;
+    interrupt_frame.internal_frame = (void*) frame;
 
-    // @note: we don't send an for 0x20 as the scheduler handles that
-    if(frame->vector != 0x20) {
-        lapic_eoi();
-    }
+    x86_64_dispatch_interrupt(&interrupt_frame);
 }

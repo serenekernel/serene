@@ -38,6 +38,10 @@ __context_switch:
     ret
 
 __userspace_exit_common:
+    ; return address of whatever called us
+    ; since we fuck with the stack we gotta grab this rq
+    pop r10
+
     ; INTEL WHY DID YOU MAKE THIS TAKE A MEMORY OPERAND ONLY
     mov rcx, (1 << 0) | (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 5) | (0b11 << 8)
     push rcx 
@@ -47,8 +51,12 @@ __userspace_exit_common:
     push rcx
     ldmxcsr [rsp]
 
+    ; clean up fpu stack
+    add rsp, 16
+
     pop rcx ; address to sysret to
     pop rax ; userspace stack pointer
+    push r10 ; push this back on the stack so ret can use it
 
     ; bye bye regs
     ; @note: we don't bother clearing rbx, rbp, r12, r13, r14, r15 
@@ -69,8 +77,10 @@ global __userspace_init_sysexit
 __userspace_init_sysexit:
     cli
     call __userspace_exit_common
+    
     mov rsp, rax
     xor rax, rax
+    
     swapgs
     o64 sysret
 
