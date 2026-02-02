@@ -283,7 +283,7 @@ void vm_flush_page_dispatch(virt_addr_t addr) {
     ipi_t ipi;
     ipi.type = IPI_TLB_FLUSH;
     ipi.tlb_flush.virt_addr = addr;
-    ipi_broadcast(&ipi);
+    ipi_broadcast_async(&ipi);
 }
 
 #define PAT_UNCACHEABLE 0
@@ -294,9 +294,7 @@ void vm_flush_page_dispatch(virt_addr_t addr) {
 #define PAT_UNCACHED 7
 
 void __setup_pat() {
-    // read cpuid 0x01 and bit 16 on edx
-    uint32_t edx = __cpuid(CPUID_GET_FEATURES, 0, CPUID_EDX);
-    if((edx & CPUID_GET_FEATURES_EDX_PAT) == 0) {
+    if(!__cpuid_is_feature_supported(CPUID_FEATURE_PAT)) {
         printf("cpu does not support pat, write combining will be unavailable");
         return;
     }
