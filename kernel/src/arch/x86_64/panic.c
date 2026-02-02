@@ -52,7 +52,7 @@ __attribute__((noreturn)) void arch_panic_int(interrupt_frame_t* frame) {
         uint8_t sgx = ((frame->error & (1 << 15)) > 0);
         printf(
             "Page fault @ 0x%016llx [ppv=%d, write=%d, ring3=%d, resv=%d, fetch=%d, pk=%d, ss=%d, sgx=%d, uap=%d]\n",
-            __read_cr2(),
+            frame->interrupt_data,
             page_protection_violation,
             write_access,
             user_mode,
