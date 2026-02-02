@@ -18,3 +18,6 @@
 [[nodiscard]] uint32_t __cpuid_get_feature_value(cpuid_feature_t feature) {
     return __cpuid((cpuid_leaf_t) feature.leaf, feature.subleaf, feature.reg) & feature.mask;
 }
+[[nodiscard]] bool __cpuid_is_feature_supported(cpuid_feature_t feature) {
+    return (__cpuid((cpuid_leaf_t) feature.leaf, feature.subleaf, feature.reg) & feature.mask) != 0;
+}

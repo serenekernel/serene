@@ -53,7 +53,7 @@ bool arch_uap_supported() {
     static bool checked = false;
     static bool supported = false;
     if(!checked) {
-        supported = (__cpuid_get_feature_value(CPUID_FEATURE_SMAP) != 0);
+        supported = (__cpuid_is_feature_supported(CPUID_FEATURE_SMAP) != 0);
         checked = true;
     }
     return supported;
@@ -126,7 +126,7 @@ void setup_memory() {
 
     arch_memory_barrier();
     uint64_t cr4 = __read_cr4();
-    if(__cpuid_get_feature_value(CPUID_FEATURE_SMEP)) {
+    if(__cpuid_is_feature_supported(CPUID_FEATURE_SMEP)) {
         cr4 |= (1 << 20); // Enable SMEP
         printf("SMEP: supported\n");
     } else {

@@ -1,11 +1,10 @@
-#include <arch/internal/cpuid.h>
-#include <memory/memory.h>
-#include <memory/vmm.h>
-
 #include <arch/hardware/lapic.h>
+#include <arch/internal/cpuid.h>
 #include <arch/msr.h>
 #include <assert.h>
 #include <common/io.h>
+#include <memory/memory.h>
+#include <memory/vmm.h>
 #include <stdint.h>
 #include <stdio.h>
 
@@ -75,8 +74,7 @@ static bool x2apic_mode = false;
 static virt_addr_t apic_base_address = 0;
 
 bool __x2apic_supported(void) {
-    uint32_t support = __cpuid(CPUID_GET_FEATURES, 0, CPUID_ECX);
-    return (support & CPUID_GET_FEATURES_ECX_X2APIC) != 0;
+    return __cpuid_is_feature_supported(CPUID_FEATURE_X2APIC);
 }
 
 static void apic_enable_mode_bsp() {
