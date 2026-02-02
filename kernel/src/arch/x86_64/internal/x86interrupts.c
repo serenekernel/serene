@@ -21,7 +21,7 @@ void setup_fred_bsp();
 void setup_fred_ap();
 
 void setup_interrupts_bsp() {
-    fred_enabled = __cpuid_get_feature_value(CPUID_FEATURE_FRED) != 0;
+    fred_enabled = __cpuid_is_feature_supported(CPUID_FEATURE_FRED);
     printf("fred support: %d\n", fred_enabled);
 
     if(fred_enabled) {
@@ -67,7 +67,7 @@ void x86_64_dispatch_interrupt(interrupt_frame_t* frame) {
             if((frame->error & (1 << 0)) == 0) {
                 reason = VM_FAULT_NOT_PRESENT;
             }
-            if(vm_handle_page_fault(reason, __read_cr2())) {
+            if(vm_handle_page_fault(reason, frame->interrupt_data)) {
                 return;
             }
         }
