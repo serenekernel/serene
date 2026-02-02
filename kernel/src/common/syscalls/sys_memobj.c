@@ -69,8 +69,7 @@ syscall_ret_t syscall_sys_copy_to(uint64_t process_handle_value, uint64_t dst, u
     SYSCALL_ASSERT_PARAM(target_process != NULL);
     SYSCALL_ASSERT_PARAM(size > 0 && size <= (4 * PAGE_SIZE_DEFAULT));
 
-    size_t page_count = ALIGN_UP(size, PAGE_SIZE_DEFAULT) / PAGE_SIZE_DEFAULT;
-    memcpy_um_um(target_process->address_space, current_thread->thread_common.address_space, (virt_addr_t) dst, (virt_addr_t) src, page_count);
+    memcpy_um_um_unaligned(target_process->address_space, current_thread->thread_common.address_space, (virt_addr_t) dst, (virt_addr_t) src, size);
 
     return SYSCALL_RET_VALUE(0);
 }
