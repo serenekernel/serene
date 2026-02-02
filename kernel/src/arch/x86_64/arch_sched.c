@@ -104,4 +104,7 @@ void sched_arch_yield_prepare(thread_t* current_thread, thread_t* next_thread) {
             tss_io_allow_port(CPU_LOCAL_READ(cpu_tss), next_thread->thread_common.process->io_perm_map[i]);
         }
     }
+
+    __wrmsr(IA32_FS_BASE_MSR, 0xdeadbeef);
+    __wrmsr(IA32_KERNEL_GS_BASE_MSR, 0xcafebabe);
 }
