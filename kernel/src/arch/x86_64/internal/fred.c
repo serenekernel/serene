@@ -38,7 +38,12 @@ void x86_64_fred_entry_ring3(fred_frame_t* frame) {
     uint8_t type = (frame->ss >> 48) & 0xF;
 
     if(type == 7) {
-        dispatch_syscall(frame->regs.rdi, frame->regs.rsi, frame->regs.rdx, frame->regs.rcx, frame->regs.r8, frame->regs.r9, (syscall_nr_t) frame->regs.rax);
+        syscall_ret_t ret = dispatch_syscall(frame->regs.rdi, frame->regs.rsi, frame->regs.rdx, frame->regs.rcx, frame->regs.r8, frame->regs.r9, (syscall_nr_t) frame->regs.rax);
+        frame->regs.rax = ret.value;
+        frame->regs.rdx = ret.is_error;
+        frame->regs.rcx = 0;
+        frame->regs.r11 = 0;
+        frame->regs.r15 = 0;
     } else {
         uint8_t vector = (frame->ss >> 32) & 0xFF;
         interrupt_frame_t interrupt_frame;
