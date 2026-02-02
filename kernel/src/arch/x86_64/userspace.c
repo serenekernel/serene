@@ -54,10 +54,13 @@ const char* convert_syscall_number(syscall_nr_t nr) {
         case SYS_CAP_INITRAMFS:         return "SYS_CAP_INITRAMFS";
         case SYS_WAIT_FOR:              return "SYS_WAIT_FOR";
         case SYS_ENDPOINT_CREATE:       return "SYS_ENDPOINT_CREATE";
-        case SYS_ENDPOINT_DESTROY:      return "SYS_ENDPOINT_DESTROY";
         case SYS_ENDPOINT_SEND:         return "SYS_ENDPOINT_SEND";
         case SYS_ENDPOINT_RECEIVE:      return "SYS_ENDPOINT_RECEIVE";
         case SYS_ENDPOINT_FREE_MESSAGE: return "SYS_ENDPOINT_FREE_MESSAGE";
+        case SYS_HANDLE_DUP:            return "SYS_HANDLE_DUP";
+        case SYS_HANDLE_CLOSE:          return "SYS_HANDLE_CLOSE";
+        case SYS_HANDLE_GET_OWNER:      return "SYS_HANDLE_GET_OWNER";
+        case SYS_HANDLE_SET_OWNER:      return "SYS_HANDLE_SET_OWNER";
         case SYS_MEM_ALLOC:             return "SYS_MEM_ALLOC";
         case SYS_MEM_FREE:              return "SYS_MEM_FREE";
         default:                        return "UNKNOWN_SYSCALL";
@@ -174,6 +177,11 @@ syscall_ret_t syscall_sys_endpoint_send(uint64_t handle_value, uint64_t payload,
 syscall_ret_t syscall_sys_endpoint_receive(uint64_t handle_value);
 syscall_ret_t syscall_sys_endpoint_free_message(uint64_t message_ptr);
 
+syscall_ret_t syscall_sys_handle_dup(uint64_t handle_value);
+syscall_ret_t syscall_sys_handle_close(uint64_t handle_value);
+syscall_ret_t syscall_sys_handle_get_owner(uint64_t handle_value);
+syscall_ret_t syscall_sys_handle_set_owner(uint64_t handle_value, uint64_t owner_pid_value);
+
 syscall_ret_t syscall_sys_mem_alloc(uint64_t size, uint64_t align, uint64_t perms);
 syscall_ret_t syscall_sys_mem_free(uint64_t addr);
 
@@ -209,10 +217,14 @@ void userspace_init() {
     SYSCALL_DISPATCHER(SYS_WAIT_FOR, syscall_sys_wait_for, 1);
 
     SYSCALL_DISPATCHER(SYS_ENDPOINT_CREATE, syscall_sys_endpoint_create, 0);
-    SYSCALL_DISPATCHER(SYS_ENDPOINT_DESTROY, syscall_sys_endpoint_destroy, 1);
     SYSCALL_DISPATCHER(SYS_ENDPOINT_SEND, syscall_sys_endpoint_send, 3);
     SYSCALL_DISPATCHER(SYS_ENDPOINT_RECEIVE, syscall_sys_endpoint_receive, 1);
     SYSCALL_DISPATCHER(SYS_ENDPOINT_FREE_MESSAGE, syscall_sys_endpoint_free_message, 1);
+
+    SYSCALL_DISPATCHER(SYS_HANDLE_DUP, syscall_sys_handle_dup, 1);
+    SYSCALL_DISPATCHER(SYS_HANDLE_CLOSE, syscall_sys_handle_close, 1);
+    SYSCALL_DISPATCHER(SYS_HANDLE_GET_OWNER, syscall_sys_handle_get_owner, 1);
+    SYSCALL_DISPATCHER(SYS_HANDLE_SET_OWNER, syscall_sys_handle_set_owner, 2);
 
     SYSCALL_DISPATCHER(SYS_MEM_ALLOC, syscall_sys_mem_alloc, 3);
     SYSCALL_DISPATCHER(SYS_MEM_FREE, syscall_sys_mem_free, 1);

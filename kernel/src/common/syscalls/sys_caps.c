@@ -1,14 +1,15 @@
 #include "memory/memory.h"
 #include "memory/vmm.h"
-#include <common/requests.h>
+
 #include <arch/cpu_local.h>
-#include <common/userspace.h>
-#include <memory/memobj.h>
-#include <common/handle.h>
-#include <common/process.h>
-#include <common/sched.h>
 #include <common/cpu_local.h>
 #include <common/endpoint.h>
+#include <common/handle.h>
+#include <common/process.h>
+#include <common/requests.h>
+#include <common/sched.h>
+#include <common/userspace.h>
+#include <memory/memobj.h>
 #include <string.h>
 
 syscall_ret_t syscall_sys_cap_port_grant(uint64_t start_port, uint64_t num_ports) {
@@ -28,22 +29,22 @@ syscall_ret_t syscall_sys_cap_port_grant(uint64_t start_port, uint64_t num_ports
     return SYSCALL_RET_VALUE(0);
 }
 
-syscall_ret_t syscall_sys_cap_ipc_discovery() {    
+syscall_ret_t syscall_sys_cap_ipc_discovery() {
     // @note: this sucks
     thread_t* thread = CPU_LOCAL_READ(current_thread);
-    handle_t target = (handle_t)1; // hard coding :3
+    handle_t target = (handle_t) 1; // hard coding :3
     handle_t our_handle = handle_dup(target);
-    handle_set_owner(our_handle, thread->thread_common.tid);
+    handle_set_owner(our_handle, thread->thread_common.process->pid);
     return SYSCALL_RET_VALUE(our_handle);
 }
 
-syscall_ret_t syscall_sys_cap_initramfs() {    
+syscall_ret_t syscall_sys_cap_initramfs() {
     static void* initramfs = nullptr;
     static size_t initramfs_size = 0;
     if(initramfs == nullptr || initramfs_size == 0) {
         for(size_t i = 0; i < module_request.response->module_count; i++) {
             // @note: this is our initramfs for now :P
-            if (strcmp(module_request.response->modules[i]->string, "initramfs-module") == 0) {
+            if(strcmp(module_request.response->modules[i]->string, "initramfs-module") == 0) {
                 initramfs = (void*) module_request.response->modules[i]->address;
                 initramfs_size = module_request.response->modules[i]->size;
             }

@@ -1,7 +1,7 @@
 #pragma once
-#include <stdint.h>
-#include <common/handle.h>
 #include <arch/thread.h>
+#include <common/handle.h>
+#include <stdint.h>
 
 typedef struct {
     uint32_t length;

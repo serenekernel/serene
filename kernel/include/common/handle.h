@@ -1,6 +1,6 @@
 #pragma once
-#include <stdint.h>
 #include <arch/thread.h>
+#include <stdint.h>
 
 typedef enum : uint8_t {
     HANDLE_TYPE_INVALID = 0,
@@ -10,24 +10,26 @@ typedef enum : uint8_t {
 } handle_type_t;
 
 typedef enum : uint8_t {
-    HANDLE_CAPS_ENDPOINT_SEND = 1 << 0,
-    HANDLE_CAPS_ENDPOINT_RECEIVE = 1 << 1,
-    HANDLE_CAPS_ENDPOINT_CLOSE = 1 << 2,
-    
-    HANDLE_CAPS_PROCESS_MAP = 1 << 0,
-    HANDLE_CAPS_PROCESS_COPY = 1 << 1,
-    HANDLE_CAPS_PROCESS_START = 1 << 2,
-    HANDLE_CAPS_PROCESS_DESTROY = 1 << 3,
-    
-    HANDLE_CAPS_MEMOBJ_MAP = 1 << 0,
-    HANDLE_CAPS_MEMOBJ_DESTROY = 1 << 1
-} handle_caps_endpoint_t;
+    HANDLE_CAPS_OWNER_CHANGE = 1 << 0,
+
+    HANDLE_CAPS_ENDPOINT_SEND = 1 << 4,
+    HANDLE_CAPS_ENDPOINT_RECEIVE = 1 << 5,
+    HANDLE_CAPS_ENDPOINT_CLOSE = 1 << 6,
+
+    HANDLE_CAPS_PROCESS_MAP = 1 << 4,
+    HANDLE_CAPS_PROCESS_COPY = 1 << 5,
+    HANDLE_CAPS_PROCESS_START = 1 << 6,
+    HANDLE_CAPS_PROCESS_DESTROY = 1 << 7,
+
+    HANDLE_CAPS_MEMOBJ_MAP = 1 << 4,
+    HANDLE_CAPS_MEMOBJ_DESTROY = 1 << 5
+} handle_caps_t;
 
 typedef uint64_t handle_t;
 
 
-typedef bool(*handle_has_data_t)(handle_t handle, void* data);
-typedef bool(*handle_free_t)(handle_t handle, void* data);
+typedef bool (*handle_has_data_t)(handle_t handle, void* data);
+typedef bool (*handle_free_t)(handle_t handle, void* data);
 
 extern handle_has_data_t endpoint_has_data;
 extern handle_free_t endpoint_free;
@@ -36,7 +38,7 @@ typedef struct {
     handle_type_t type;
     uint8_t capabilities;
     bool valid;
-    uint32_t owner_thread;
+    uint32_t owner_pid;
     void* data;
     handle_has_data_t has_data;
     handle_free_t free;
@@ -45,7 +47,7 @@ typedef struct {
 static_assert(sizeof(handle_t) == 8, "handle_t must be 8 bytes");
 
 void handle_setup();
-handle_t handle_create(handle_type_t type, uint32_t owner_thread, uint8_t caps, void* ptr);
+handle_t handle_create(handle_type_t type, uint32_t owner_pid, uint8_t caps, void* ptr);
 void handle_delete(handle_t handle);
 
 handle_meta_t* handle_get(handle_t handle);

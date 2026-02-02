@@ -16,17 +16,10 @@ syscall_ret_t syscall_sys_endpoint_create() {
     thread_t* thread = CPU_LOCAL_READ(current_thread);
     endpoint_t* endpoint = endpoint_create(thread, 16);
 
-    handle_t handle = handle_create(HANDLE_TYPE_ENDPOINT, thread->thread_common.tid, HANDLE_CAPS_ENDPOINT_SEND | HANDLE_CAPS_ENDPOINT_RECEIVE | HANDLE_CAPS_ENDPOINT_CLOSE, (void*) endpoint);
+    handle_t handle = handle_create(HANDLE_TYPE_ENDPOINT, thread->thread_common.process->pid, HANDLE_CAPS_ENDPOINT_SEND | HANDLE_CAPS_ENDPOINT_RECEIVE | HANDLE_CAPS_ENDPOINT_CLOSE, (void*) endpoint);
     printf("Created endpoint handle 0x%llx for process %d\n", handle, thread->thread_common.process->pid);
 
     return SYSCALL_RET_VALUE(handle);
-}
-
-syscall_ret_t syscall_sys_endpoint_destroy(uint64_t handle_value) {
-    handle_t handle = *(handle_t*) &handle_value;
-    SYSCALL_ASSERT_HANDLE_TYPE(handle, HANDLE_TYPE_ENDPOINT);
-    handle_delete(handle);
-    return SYSCALL_RET_VALUE(0);
 }
 
 syscall_ret_t syscall_sys_endpoint_send(uint64_t handle_value, uint64_t payload, uint64_t payload_length) {
