@@ -194,18 +194,14 @@ void sched_arch_init_thread(thread_t* thread, virt_addr_t entry_point);
 
 
 thread_t* sched_thread_common_init(vm_allocator_t* address_space, virt_addr_t entry_point) {
-    size_t obj_size = sizeof(thread_t);
-    if(address_space->is_user) {
-        obj_size += fpu_area_size();
-    }
-    obj_size = ALIGN_UP(obj_size, 64);
-    thread_t* thread = (thread_t*) vmm_alloc_object(&kernel_allocator, obj_size);
+    thread_t* thread = (thread_t*) vmm_alloc_object(&kernel_allocator, sizeof(thread_t));
     thread->thread_common.process = nullptr;
     thread->thread_common.tid = next_tid++;
     thread->thread_common.address_space = address_space;
 
     if(address_space->is_user) {
-        thread->fpu_area = (void*) ALIGN_UP((virt_addr_t) thread + sizeof(thread_t), 64);
+        virt_addr_t fpu_area = vmm_alloc_object(&kernel_allocator, ALIGN_UP(fpu_area_size(), 64) + 64);
+        thread->fpu_area = (void*) ALIGN_UP(fpu_area, 64);
     } else {
         thread->fpu_area = nullptr;
     }
