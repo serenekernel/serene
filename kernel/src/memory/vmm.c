@@ -181,6 +181,7 @@ virt_addr_t vmm_copy_read_only(vm_allocator_t* dest_alloc, vm_allocator_t* src_a
 }
 
 void vmm_free(vm_allocator_t* allocator, virt_addr_t addr) {
+    bool irq = interrupts_enabled();
     rb_node_t* node = rb_find_exact(&allocator->vm_tree, addr);
     if(node) {
         rb_remove(&allocator->vm_tree, node);
@@ -188,6 +189,8 @@ void vmm_free(vm_allocator_t* allocator, virt_addr_t addr) {
 
         if(vm_node->options_type == VM_OPTIONS_BACKED || vm_node->options_type == VM_OPTIONS_DEMAND) {
             size_t page_count = vm_node->size / PAGE_SIZE_DEFAULT;
+            // Enable interrupts during unmap to allow IPI processing
+            if(!irq) enable_interrupts();
             for(size_t i = 0; i < page_count; i++) {
                 phys_addr_t phys = vm_resolve(allocator, vm_node->base + (i * PAGE_SIZE_DEFAULT));
                 if(phys == 0) {
@@ -196,13 +199,17 @@ void vmm_free(vm_allocator_t* allocator, virt_addr_t addr) {
                 vm_unmap_page(allocator, vm_node->base + (i * PAGE_SIZE_DEFAULT));
                 pmm_free_page(phys);
             }
+            if(!irq) disable_interrupts();
         } else if(vm_node->options_type == VM_OPTIONS_MEMOBJ) {
             // for memobj mappings unmap pages but don't free physical memory
             // the memobj owns the physical pages
             size_t page_count = vm_node->size / PAGE_SIZE_DEFAULT;
+            // Enable interrupts during unmap to allow IPI processing
+            if(!irq) enable_interrupts();
             for(size_t i = 0; i < page_count; i++) {
                 vm_unmap_page(allocator, vm_node->base + (i * PAGE_SIZE_DEFAULT));
             }
+            if(!irq) disable_interrupts();
 
             memobj_t* memobj = vm_node->options.memobj.memobj;
             if(memobj) {
