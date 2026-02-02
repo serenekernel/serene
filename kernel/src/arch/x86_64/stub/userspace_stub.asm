@@ -1,5 +1,13 @@
 global __handle_syscall
 extern dispatch_syscall
+
+; 
+; serene syscall abi:
+; rax - syscall number
+; rdi, rsi, rdx, r10, r8, r9 - args
+; return: rax - return value
+;         rdx - is_error (0 = success, 1 = error)
+; clobbered: rcx, r11 (syscall instruction), r15
 __handle_syscall:
     swapgs
 
