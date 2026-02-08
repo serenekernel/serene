@@ -58,22 +58,6 @@ void ipi_send_async(uint32_t cpu_id, ipi_t* ipi) {
     arch_ipi_send_raw(cpu_id);
 }
 
-void ipi_send(uint32_t cpu_id, ipi_t* ipi) {
-    if(g_ipi_table == nullptr) {
-        return;
-    }
-    spinlock_lock(&g_ipi_lock);
-    ipi_set(cpu_id, ipi);
-    arch_ipi_send_raw(cpu_id);
-
-    // @note: since we lock the pending in ipi_set, and it's unlocked in ipi_handle,
-    // we can just lock it here to wait for the IPI to be handled.
-    // cursed: yes, works: also yes
-    spinlock_lock(&g_ipi_table[cpu_id].ipi_lock);
-    spinlock_unlock(&g_ipi_table[cpu_id].ipi_lock);
-
-    spinlock_unlock(&g_ipi_lock);
-}
 
 void ipi_broadcast_raw(ipi_t* ipi) {
     for(size_t i = 0; i < g_cpu_count; i++) {
@@ -92,29 +76,6 @@ void ipi_broadcast_async(ipi_t* ipi) {
     spinlock_lock(&g_ipi_lock);
     ipi_broadcast_raw(ipi);
     arch_ipi_broadcast_raw();
-    spinlock_unlock(&g_ipi_lock);
-}
-
-void ipi_broadcast(ipi_t* ipi) {
-    if(g_ipi_table == nullptr) {
-        return;
-    }
-    spinlock_lock(&g_ipi_lock);
-    ipi_broadcast_raw(ipi);
-    arch_ipi_broadcast_raw();
-
-    // wait for all IPIs to be handled
-    for(size_t i = 0; i < g_cpu_count; i++) {
-        if(i == arch_get_core_id() || g_ipi_table[i].cpu_exists == false) {
-            continue;
-        }
-
-        // @note: since we lock the pending in ipi_set, and it's unlocked in ipi_handle,
-        // we can just lock it here to wait for the IPI to be handled.
-        // cursed: yes, works: also yes
-        spinlock_lock(&g_ipi_table[i].ipi_lock);
-        spinlock_unlock(&g_ipi_table[i].ipi_lock);
-    }
     spinlock_unlock(&g_ipi_lock);
 }
 
