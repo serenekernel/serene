@@ -1,7 +1,7 @@
 #include <common/arch.h>
 #include <common/ipi.h>
-#include <memory/memory.h>
 #include <common/requests.h>
+#include <memory/memory.h>
 #include <memory/pmm.h>
 #include <memory/vmm.h>
 #include <string.h>
@@ -133,7 +133,7 @@ void vm_map_pages_continuous(vm_allocator_t* allocator, virt_addr_t virt_addr, p
 }
 
 void vm_map_page(vm_allocator_t* allocator, virt_addr_t virt_addr, phys_addr_t phys_addr, vm_access_t access, vm_cache_t cache, vm_flags_t flags) {
-    vm_flags_data_t protection = convert_vm_flags(flags);   
+    vm_flags_data_t protection = convert_vm_flags(flags);
     uint64_t intermediate_flags = 0;
 
     phys_addr_t page_table_base = is_higher_half(virt_addr) ? allocator->kernel_paging_structures_base : allocator->paging_structures_base;
@@ -278,7 +278,7 @@ void vm_flush_page_dispatch(virt_addr_t addr) {
     ipi_t ipi;
     ipi.type = IPI_TLB_FLUSH;
     ipi.tlb_flush.virt_addr = addr;
-    ipi_broadcast(&ipi);
+    ipi_broadcast_async(&ipi);
 }
 
 static inline void __setup_mair() {
@@ -336,4 +336,3 @@ void vm_paging_ap_init(vm_allocator_t* allocator) {
     __setup_mair();
     __setup_tcr();
 }
-
