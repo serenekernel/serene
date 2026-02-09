@@ -351,3 +351,10 @@ void arch_ipi_eoi(void) {
 void arch_debug_putc(char c) {
     port_write_u8(0xe9, (uint8_t) c);
 }
+
+uint64_t __stack_chk_guard = 0xdeadbeefcafebabe;
+
+__attribute__((noreturn)) void __stack_chk_fail(void) {
+    printf("Stack smashing detected on CPU %u\n", lapic_get_id());
+    arch_die();
+}

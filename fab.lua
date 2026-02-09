@@ -35,6 +35,7 @@ local c_flags = {
     "-fno-stack-protector",
     "-fno-stack-check",
     "-fno-strict-aliasing",
+    "-fstack-protector-all",
 
     "-Wimplicit-fallthrough",
     "-Wmissing-field-initializers",
