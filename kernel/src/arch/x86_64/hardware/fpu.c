@@ -1,9 +1,12 @@
+#include "memory/memory.h"
+
 #include <arch/hardware/fpu.h>
 #include <arch/internal/cpuid.h>
 #include <assert.h>
 #include <common/arch.h>
 #include <memory/vmm.h>
 #include <stdio.h>
+#include <string.h>
 
 size_t g_fpu_area_size;
 void (*g_fpu_save)(void* ptr);
@@ -22,11 +25,15 @@ void fpu_load(void* ptr) {
 }
 
 static inline void xsave(void* area) {
-    asm volatile("xsave (%0)" : : "r"(area), "a"(0xFFFF'FFFF), "d"(0xFFFF'FFFF) : "memory");
+    uint32_t eax, edx;
+    asm volatile("xgetbv" : "=a"(eax), "=d"(edx) : "c"(0) : "memory");
+    asm volatile("xsave (%0)" : : "r"(area), "a"(eax), "d"(edx) : "memory");
 }
 
 static inline void xrstor(void* area) {
-    asm volatile("xrstor (%0)" : : "r"(area), "a"(0xFFFF'FFFF), "d"(0xFFFF'FFFF) : "memory");
+    uint32_t eax, edx;
+    asm volatile("xgetbv" : "=a"(eax), "=d"(edx) : "c"(0) : "memory");
+    asm volatile("xrstor (%0)" : : "r"(area), "a"(eax), "d"(edx) : "memory");
 }
 
 static inline void fxsave(void* area) {
@@ -97,8 +104,8 @@ void fpu_init_ap() {
 }
 
 void* fpu_alloc_area() {
-    void* area = (void*) vmm_alloc_object(&kernel_allocator, g_fpu_area_size + 64);
-    return (void*) ALIGN_UP((uintptr_t) area, 64);
+    void* area = (void*) vmm_alloc_object(&kernel_allocator, g_fpu_area_size);
+    return area;
 }
 
 void fpu_free_area(void* area) {
