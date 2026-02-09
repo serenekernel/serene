@@ -109,3 +109,13 @@ syscall_ret_t syscall_sys_endpoint_receive(uint64_t handle_value) {
     // Return the pointer directly - user can read length from message_t->length
     return SYSCALL_RET_VALUE((uint64_t) message);
 }
+
+syscall_ret_t syscall_sys_endpoint_get_owner(uint64_t handle_value) {
+    handle_t handle = *(handle_t*) &handle_value;
+    handle_meta_t* handle_meta = handle_get(handle);
+    SYSCALL_ASSERT_HANDLE_TYPE(handle, HANDLE_TYPE_ENDPOINT);
+    endpoint_t* endpoint = (endpoint_t*) handle_meta->data;
+    SYSCALL_ASSERT_PARAM(endpoint != NULL);
+
+    return SYSCALL_RET_VALUE(endpoint->owner->thread_common.process->pid);
+}

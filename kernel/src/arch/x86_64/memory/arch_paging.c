@@ -2,8 +2,10 @@
 #include <arch/internal/cr.h>
 #include <arch/msr.h>
 #include <common/arch.h>
+#include <common/cpu_local.h>
 #include <common/ipi.h>
 #include <common/requests.h>
+#include <common/thread.h>
 #include <memory/memory.h>
 #include <memory/pagedb.h>
 #include <memory/pmm.h>
@@ -380,7 +382,8 @@ bool vm_handle_page_fault(vm_fault_reason_t reason, virt_addr_t fault_address) {
         return false;
     }
 
-    vm_node_t* node = (vm_node_t*) rb_find_within(&kernel_allocator.vm_tree, fault_address);
+    thread_t* current_thread = CPU_LOCAL_READ(current_thread);
+    vm_node_t* node = (vm_node_t*) rb_find_within(&current_thread->thread_common.address_space->vm_tree, fault_address);
     if(node == NULL) {
         return false;
     }
@@ -389,7 +392,7 @@ bool vm_handle_page_fault(vm_fault_reason_t reason, virt_addr_t fault_address) {
 
     if(node->options_type == VM_OPTIONS_DEMAND) {
         phys_addr_t phys = pmm_alloc_page();
-        vm_map_page(&kernel_allocator, fault_address, phys, node->options.demand.access, node->options.demand.cache, node->options.demand.flags);
+        vm_map_page(current_thread->thread_common.address_space, fault_address, phys, node->options.demand.access, node->options.demand.cache, node->options.demand.flags);
         if(node->options.demand.zero_fill) {
             memset((void*) fault_address, 0, PAGE_SIZE_DEFAULT);
         }
