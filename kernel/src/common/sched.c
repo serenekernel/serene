@@ -17,8 +17,8 @@
 #include <memory/vmm.h>
 #include <stdint.h>
 
-#define THREAD_STACK_SIZE_PAGES 4
-#define THREAD_KERNEL_STACK_SIZE_PAGES 4
+#define THREAD_STACK_SIZE_PAGES 8
+#define THREAD_KERNEL_STACK_SIZE_PAGES 8
 
 spinlock_t g_sched_lock = 0;
 extern process_t* g_proc_head;
@@ -181,7 +181,6 @@ void sched_init_ap() {
 
 void sched_start() {
     CPU_LOCAL_READ(cpu_scheduler)->idle_thread->thread_common.status = THREAD_STATUS_RUNNING;
-
     lapic_timer_oneshot_ms(10);
     __jump_to_idle_thread(CPU_LOCAL_READ(cpu_scheduler)->idle_thread->kernel_rsp, (virt_addr_t) idle_thread);
 
@@ -210,7 +209,7 @@ thread_t* sched_thread_common_init(vm_allocator_t* address_space, virt_addr_t en
     thread->proc_next = nullptr;
 
     thread->thread_rsp = vmm_alloc_backed(address_space, THREAD_STACK_SIZE_PAGES, (address_space->is_user ? VM_ACCESS_USER : VM_ACCESS_KERNEL), VM_CACHE_NORMAL, VM_READ_WRITE, true) + (THREAD_STACK_SIZE_PAGES * PAGE_SIZE_DEFAULT) - 8;
-    thread->kernel_rsp = vmm_alloc_backed(&kernel_allocator, THREAD_KERNEL_STACK_SIZE_PAGES, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true) + THREAD_KERNEL_STACK_SIZE_PAGES * PAGE_SIZE_DEFAULT;
+    thread->kernel_rsp = vmm_alloc_backed(&kernel_allocator, THREAD_KERNEL_STACK_SIZE_PAGES, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true) + (THREAD_KERNEL_STACK_SIZE_PAGES * PAGE_SIZE_DEFAULT);
     thread->syscall_rsp = 0;
 
     sched_arch_init_thread(thread, entry_point);
@@ -276,6 +275,13 @@ void sched_yield_status(thread_status_t new_status) {
 
     sched_arch_yield_prepare(current_thread, next_thread);
 
+    // we mark the new thread as running before dropping the lock to avoid a race
+    // we also do not change the old thread's status to blocked/ready until after we've switched from it's context
+    next_thread->thread_common.status = THREAD_STATUS_RUNNING;
+
+    CPU_LOCAL_WRITE(current_thread, next_thread);
+    spinlock_unlock(&g_sched_lock);
+
     if(current_thread->fpu_area != nullptr) {
         fpu_save(current_thread->fpu_area);
     }
@@ -283,9 +289,6 @@ void sched_yield_status(thread_status_t new_status) {
         fpu_load(next_thread->fpu_area);
     }
 
-    CPU_LOCAL_WRITE(current_thread, next_thread);
-
-    spinlock_unlock(&g_sched_lock);
     lapic_timer_oneshot_ms(10);
     __context_switch(current_thread, next_thread, new_status);
 }
