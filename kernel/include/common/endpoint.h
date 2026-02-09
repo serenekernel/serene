@@ -5,8 +5,7 @@
 
 typedef struct {
     uint32_t length;
-    uint16_t type;
-    uint16_t flags;
+    uint32_t sender_pid;
     handle_t reply_handle;
     uint8_t payload[];
 } message_t;

@@ -22,7 +22,7 @@ syscall_ret_t syscall_sys_endpoint_create() {
     return SYSCALL_RET_VALUE(handle);
 }
 
-syscall_ret_t syscall_sys_endpoint_send(uint64_t handle_value, uint64_t payload, uint64_t payload_length) {
+syscall_ret_t syscall_sys_endpoint_send(uint64_t handle_value, uint64_t payload, uint64_t payload_length, uint64_t reply_handle_value) {
     handle_t handle = *(handle_t*) &handle_value;
     handle_meta_t* handle_meta = handle_get(handle);
     SYSCALL_ASSERT_HANDLE_TYPE(handle, HANDLE_TYPE_ENDPOINT);
@@ -30,6 +30,23 @@ syscall_ret_t syscall_sys_endpoint_send(uint64_t handle_value, uint64_t payload,
     SYSCALL_ASSERT_PARAM(endpoint != NULL);
     SYSCALL_ASSERT_PARAM(handle_meta->capabilities & HANDLE_CAPS_ENDPOINT_SEND);
     SYSCALL_ASSERT_PARAM(payload_length < PAGE_SIZE_DEFAULT * 4);
+
+    handle_t transferred_reply_handle = (handle_t) -1;
+    if(reply_handle_value != (uint64_t) -1) {
+        printf("reply_handle_value: 0x%llx\n", reply_handle_value);
+        handle_meta_t* reply_handle_meta = handle_get((handle_t) reply_handle_value);
+        SYSCALL_ASSERT_PARAM(reply_handle_meta != NULL);
+        printf("reply_handle owner_pid: %u, current_pid: %u\n", reply_handle_meta->owner_pid, CPU_LOCAL_READ(current_thread)->thread_common.process->pid);
+        SYSCALL_ASSERT_PARAM(reply_handle_meta->owner_pid == CPU_LOCAL_READ(current_thread)->thread_common.process->pid);
+        SYSCALL_ASSERT_PARAM(reply_handle_meta->capabilities & HANDLE_CAPS_ENDPOINT_RECEIVE);
+
+        // Duplicate the handle and transfer ownership to the receiving process
+        transferred_reply_handle = handle_dup((handle_t) reply_handle_value);
+        printf("duplicated reply_handle: 0x%llx, transferring to pid %u\n", transferred_reply_handle, endpoint->owner->thread_common.process->pid);
+        handle_set_owner(transferred_reply_handle, endpoint->owner->thread_common.process->pid);
+        handle_meta_t* check = handle_get(transferred_reply_handle);
+        printf("after transfer, new handle owner_pid: %u\n", check ? check->owner_pid : 0);
+    }
 
     thread_t* thread = CPU_LOCAL_READ(current_thread);
     printf("payload len: %lld\n", payload_length);
@@ -40,11 +57,10 @@ syscall_ret_t syscall_sys_endpoint_send(uint64_t handle_value, uint64_t payload,
 
     message_t* message = (message_t*) vmm_alloc_object(endpoint->owner->thread_common.address_space, sizeof(message_t) + payload_length);
     message->length = (uint32_t) payload_length;
-    message->type = 0;
-    message->flags = 0;
-    message->reply_handle = -1;
+    message->sender_pid = thread->thread_common.process->pid;
+    message->reply_handle = transferred_reply_handle;
 
-    printf("send: message ptr 0x%llx, length %u, type %u, flags %u, reply_handle 0x%llx\n", (uint64_t) message, message->length, message->type, message->flags, message->reply_handle);
+    printf("send: message ptr 0x%llx, length %u, sender_pid %u, reply_handle 0x%llx\n", (uint64_t) message, message->length, message->sender_pid, message->reply_handle);
 
     EXIT_UAP_SECTION()
     EXIT_ADDRESS_SWITCH();
@@ -85,7 +101,7 @@ syscall_ret_t syscall_sys_endpoint_receive(uint64_t handle_value) {
     ENTER_UAP_SECTION();
     vm_address_space_switch(thread->thread_common.address_space);
 
-    printf("receive: message ptr 0x%llx, length %u, type %u, flags %u, reply_handle 0x%llx\n", (uint64_t) message, message->length, message->type, message->flags, message->reply_handle);
+    printf("receive: message ptr 0x%llx, length %u, sender_pid %u, reply_handle 0x%llx\n", (uint64_t) message, message->length, message->sender_pid, message->reply_handle);
 
     EXIT_UAP_SECTION();
     EXIT_ADDRESS_SWITCH();

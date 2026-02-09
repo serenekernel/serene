@@ -173,7 +173,7 @@ syscall_ret_t syscall_sys_wait_for(uint64_t handle_value);
 
 syscall_ret_t syscall_sys_endpoint_create();
 syscall_ret_t syscall_sys_endpoint_destroy(uint64_t handle_value);
-syscall_ret_t syscall_sys_endpoint_send(uint64_t handle_value, uint64_t payload, uint64_t payload_length);
+syscall_ret_t syscall_sys_endpoint_send(uint64_t handle_value, uint64_t payload, uint64_t payload_length, uint64_t reply_handle_value);
 syscall_ret_t syscall_sys_endpoint_receive(uint64_t handle_value);
 syscall_ret_t syscall_sys_endpoint_free_message(uint64_t message_ptr);
 
@@ -217,7 +217,7 @@ void userspace_init() {
     SYSCALL_DISPATCHER(SYS_WAIT_FOR, syscall_sys_wait_for, 1);
 
     SYSCALL_DISPATCHER(SYS_ENDPOINT_CREATE, syscall_sys_endpoint_create, 0);
-    SYSCALL_DISPATCHER(SYS_ENDPOINT_SEND, syscall_sys_endpoint_send, 3);
+    SYSCALL_DISPATCHER(SYS_ENDPOINT_SEND, syscall_sys_endpoint_send, 4);
     SYSCALL_DISPATCHER(SYS_ENDPOINT_RECEIVE, syscall_sys_endpoint_receive, 1);
     SYSCALL_DISPATCHER(SYS_ENDPOINT_FREE_MESSAGE, syscall_sys_endpoint_free_message, 1);
 
