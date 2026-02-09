@@ -2,6 +2,7 @@
 #include <arch/internal/cpuid.h>
 #include <assert.h>
 #include <common/arch.h>
+#include <memory/vmm.h>
 #include <stdio.h>
 
 size_t g_fpu_area_size;
@@ -93,4 +94,13 @@ void fpu_init_ap() {
     }
 
     return;
+}
+
+void* fpu_alloc_area() {
+    void* area = (void*) vmm_alloc_object(&kernel_allocator, g_fpu_area_size + 64);
+    return (void*) ALIGN_UP((uintptr_t) area, 64);
+}
+
+void fpu_free_area(void* area) {
+    vmm_free(&kernel_allocator, (virt_addr_t) area);
 }

@@ -72,6 +72,7 @@ void reaper_thread() {
                     // Release lock before calling vmm_free (which can trigger IPIs and wait for other CPUs)
                     spinlock_critical_unlock(&g_sched_lock, __spin_flags);
 
+                    fpu_free_area(to_reap->fpu_area);
                     vmm_free(thread_addr_space, thread_rsp);
                     vmm_free(&kernel_allocator, kernel_rsp);
                     vmm_free(&kernel_allocator, thread_ptr);
@@ -200,10 +201,7 @@ thread_t* sched_thread_common_init(vm_allocator_t* address_space, virt_addr_t en
     thread->thread_common.address_space = address_space;
 
     if(address_space->is_user) {
-        size_t alloc_size = fpu_area_size() + 64;
-        void* fpu_area = (void*) vmm_alloc_object(&kernel_allocator, alloc_size);
-        thread->fpu_area = (void*) ALIGN_UP((uintptr_t)fpu_area, 64);
-        // fpu_save(thread->fpu_area);
+        thread->fpu_area = fpu_alloc_area();
     } else {
         thread->fpu_area = nullptr;
     }
