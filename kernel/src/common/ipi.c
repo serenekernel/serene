@@ -82,15 +82,16 @@ void ipi_broadcast_async(ipi_t* ipi) {
 void ipi_handle() {
     assert(g_ipi_table != nullptr && "IPI table not initialized before setting IPI");
     assert(g_ipi_table[arch_get_core_id()].cpu_exists == true && "Setting IPI to non-existent CPU");
-    printf("%d %d\n", arch_get_core_id(), g_ipi_table[arch_get_core_id()].ipi_pending);
     assert(g_ipi_table[arch_get_core_id()].ipi_pending == true && "Processing IPI when none is pending");
     ipi_t* ipi = &g_ipi_table[arch_get_core_id()].ipi;
 
     if(ipi->type == IPI_TLB_FLUSH) {
+        printf("Received TLB flush IPI for address 0x%lx\n", ipi->tlb_flush.virt_addr);
         vm_flush_page_raw(ipi->tlb_flush.virt_addr);
     }
 
     if(ipi->type == IPI_DIE) {
+        printf("Received DIE IPI\n");
         arch_die();
     }
 
