@@ -166,6 +166,9 @@ void setup_arch() {
     printf("LAPIC INIT OK!\n");
     fpu_init_bsp();
     printf("FPU INIT OK!\n");
+
+    printf("CPU Vendor: %s\n", __cpuid_get_vendor_string());
+    printf("CPU Name: %s\n", __cpuid_get_name_string());
 }
 
 void ps2_test(interrupt_frame_t*) {

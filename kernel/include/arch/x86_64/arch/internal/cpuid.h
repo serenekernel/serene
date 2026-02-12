@@ -40,3 +40,6 @@ CPUID_FEATURE_DEFINE(LKGS, CPUID_GET_EXTENDED_FEATURES, 1, CPUID_EAX, 18);
 [[nodiscard]] bool __cpuid_is_feature_supported(cpuid_feature_t feature);
 [[nodiscard]] uint32_t __cpuid_get_feature_value(cpuid_feature_t feature);
 [[nodiscard]] uint32_t __cpuid(cpuid_leaf_t leaf, uint32_t subleaf, cpuid_reg_t reg);
+
+[[nodiscard]] const char* __cpuid_get_vendor_string();
+[[nodiscard]] const char* __cpuid_get_name_string();
