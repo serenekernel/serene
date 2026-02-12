@@ -11,6 +11,8 @@
 
 extern void x86_64_fred_ring3_entry_stub();
 
+#define FRED_STACK_LEVEL_VALUE(vector, level) (((uint64_t) (level) & 0x3) << ((vector) * 2))
+
 void setup_fred_bsp() {
     tss_t* tss = CPU_LOCAL_READ(cpu_tss);
     arch_memory_barrier();
@@ -24,7 +26,13 @@ void setup_fred_bsp() {
     __wrmsr(IA32_FRED_RSP1, (uint64_t) tss->ist[1]); // #NMI
     __wrmsr(IA32_FRED_RSP2, (uint64_t) tss->ist[2]); // #DF
     __wrmsr(IA32_FRED_RSP3, (uint64_t) tss->ist[3]); // #MC
-    __wrmsr(IA32_FRED_STACK_LEVELS, 0); // @todo
+
+    uint64_t fred_stack_level = 0;
+    fred_stack_level |= FRED_STACK_LEVEL_VALUE(0x02, 1); // #NMI
+    fred_stack_level |= FRED_STACK_LEVEL_VALUE(0x08, 2); // #DF
+    fred_stack_level |= FRED_STACK_LEVEL_VALUE(0x12, 3); // #MC
+
+    __wrmsr(IA32_FRED_STACK_LEVELS, fred_stack_level);
 }
 
 void setup_fred_ap() {
