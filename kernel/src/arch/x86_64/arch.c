@@ -126,24 +126,34 @@ void setup_memory() {
 
     arch_memory_barrier();
     uint64_t cr4 = __read_cr4();
+    if(__cpuid_is_feature_supported(CPUID_FEATURE_UMIP)) {
+        cr4 |= (1 << 11); // cr4.UMIP
+        printf("UMIP: supported\n");
+    } else {
+        printf("UMIP: not supported\n");
+    }
+
     if(__cpuid_is_feature_supported(CPUID_FEATURE_SMEP)) {
-        cr4 |= (1 << 20); // Enable SMEP
+        cr4 |= (1 << 20); // cr4.SMEP
         printf("SMEP: supported\n");
     } else {
         printf("SMEP: not supported\n");
     }
+
     if(arch_uap_supported()) {
         printf("SMAP: supported\n");
-        cr4 |= (1 << 21); // Enable SMAP
+        cr4 |= (1 << 21); // cr4.SMAP
     } else {
         printf("SMAP: not supported\n");
     }
-    __write_cr4(cr4);
-    arch_memory_barrier();
+
     uint64_t cr0 = __read_cr0();
-    cr0 |= (1 << 16); // Enable WP
+    cr0 |= (1 << 16); // cr0.WP
+
     __write_cr0(cr0);
+    __write_cr4(cr4);
     __set_uap(true);
+
     arch_memory_barrier();
 }
 
