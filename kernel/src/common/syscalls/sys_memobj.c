@@ -67,7 +67,7 @@ syscall_ret_t syscall_sys_copy_to(uint64_t process_handle_value, uint64_t dst, u
     thread_t* current_thread = CPU_LOCAL_READ(current_thread);
 
     SYSCALL_ASSERT_PARAM(target_process != NULL);
-    SYSCALL_ASSERT_PARAM(size > 0 && size <= (4 * PAGE_SIZE_DEFAULT));
+    SYSCALL_ASSERT_PARAM(size > 0 && size <= (1024 * PAGE_SIZE_DEFAULT));
 
     memcpy_um_um_unaligned(target_process->address_space, current_thread->thread_common.address_space, (virt_addr_t) dst, (virt_addr_t) src, size);
 
