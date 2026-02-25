@@ -11,8 +11,8 @@
 
 // Compile nanoprintf in this translation unit.
 #define NANOPRINTF_IMPLEMENTATION
-#include <common/io.h>
 #include <common/arch.h>
+#include <common/io.h>
 #include <common/requests.h>
 #include <common/spinlock.h>
 #include <flanterm.h>
@@ -33,6 +33,10 @@ void sink_flanterm(char* c) {
 }
 
 void term_init(void) {
+    if(!framebuffer_request.response || framebuffer_request.response->framebuffer_count == 0) {
+        sink_debug("No framebuffer found!\n");
+        return;
+    }
     struct limine_framebuffer* framebuffer = framebuffer_request.response->framebuffers[0];
 
     ft_ctx = flanterm_fb_init(
