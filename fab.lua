@@ -42,7 +42,7 @@ local c_flags = {
     
     "-fdiagnostics-color=always",
     "-DUACPI_BAREBONES_MODE",
-    "-DLIMINE_API_REVISION=4"
+    "-DLIMINE_API_REVISION=5"
 }
 
 if opt_build_type == "release" then
@@ -78,7 +78,7 @@ local cc_runtime = fab.git(
 local limine_protocol = fab.git(
     "limine_protocol",
     "https://codeberg.org/Limine/limine-protocol.git",
-    "trunk"
+    "fd3197997e"
 )
 
 local flanterm = fab.git(

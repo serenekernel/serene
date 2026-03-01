@@ -1,5 +1,5 @@
-#include <memory/memory.h>
 #include <limine.h>
+#include <memory/memory.h>
 
 const char* limine_memmap_type_to_str(uint64_t type) {
     switch(type) {
@@ -11,7 +11,7 @@ const char* limine_memmap_type_to_str(uint64_t type) {
         case LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE: return "ldr reclaim";
         case LIMINE_MEMMAP_EXECUTABLE_AND_MODULES: return "exec & modules";
         case LIMINE_MEMMAP_FRAMEBUFFER:            return "fb";
-        case LIMINE_MEMMAP_ACPI_TABLES:            return "acpitbl";
+        case LIMINE_MEMMAP_RESERVED_MAPPED:        return "resvmapped";
         default:                                   return "unknown";
     }
 }
