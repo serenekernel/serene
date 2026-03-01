@@ -152,7 +152,7 @@ __attribute__((noreturn)) void arch_panic_int(interrupt_frame_t* frame) {
         printf(" [other page table]\n");
     }
     printf("cr4 = 0x%016llx [todo]\n", cr4);
-    printf("cr8 = 0x%016llx [tpl=%d]\n", cr8);
+    printf("cr8 = 0x%016llx [tpl=%d]\n", cr8, cr8);
 
     arch_disable_uap();
 
