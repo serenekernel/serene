@@ -105,6 +105,6 @@ void sched_arch_yield_prepare(thread_t* current_thread, thread_t* next_thread) {
         }
     }
 
-    __wrmsr(IA32_FS_BASE_MSR, 0xdeadbeef);
+    __wrmsr(IA32_FS_BASE_MSR, next_thread->fsbase);
     __wrmsr(IA32_KERNEL_GS_BASE_MSR, 0xcafebabe);
 }

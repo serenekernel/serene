@@ -38,7 +38,9 @@ typedef struct {
     } handlers;
 } syscall_entry_t;
 
-syscall_entry_t syscall_table[256];
+#define MAX_SYSCALL_NUMBER 512
+
+syscall_entry_t syscall_table[MAX_SYSCALL_NUMBER];
 
 
 const char* convert_syscall_number(syscall_nr_t nr) {
@@ -63,6 +65,7 @@ const char* convert_syscall_number(syscall_nr_t nr) {
         case SYS_HANDLE_SET_OWNER:      return "SYS_HANDLE_SET_OWNER";
         case SYS_MEM_ALLOC:             return "SYS_MEM_ALLOC";
         case SYS_MEM_FREE:              return "SYS_MEM_FREE";
+        case SYS_SET_FSBASE:            return "SYS_SET_FSBASE";
         default:                        return "UNKNOWN_SYSCALL";
     }
 }
@@ -97,7 +100,7 @@ syscall_ret_t syscall_sys_invalid(uint64_t arg1, uint64_t arg2, uint64_t arg3, u
 syscall_ret_t dispatch_syscall(uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4, uint64_t arg5, uint64_t arg6, syscall_nr_t syscall_nr) {
     thread_t* thread = CPU_LOCAL_READ(current_thread);
 
-    if(syscall_nr >= 256) {
+    if(syscall_nr >= MAX_SYSCALL_NUMBER) {
         printf(
             "[systrace] %d:%d - (0x%llx) %s(0x%llx, 0x%llx, 0x%llx, 0x%llx, 0x%llx, 0x%llx) = %s (0x%llx)\n",
             thread->thread_common.process->pid,
@@ -186,6 +189,8 @@ syscall_ret_t syscall_sys_handle_set_owner(uint64_t handle_value, uint64_t owner
 syscall_ret_t syscall_sys_mem_alloc(uint64_t size, uint64_t align, uint64_t perms);
 syscall_ret_t syscall_sys_mem_free(uint64_t addr);
 
+syscall_ret_t syscall_sys_set_fsbase(uint64_t fsbase);
+
 void userspace_init() {
     uint64_t efer = __rdmsr(IA32_EFER);
     efer |= (1 << 0);
@@ -197,7 +202,7 @@ void userspace_init() {
     __wrmsr(IA32_LSTAR, (uint64_t) __handle_syscall);
     __wrmsr(IA32_SFMASK, ~0x2);
 
-    for(size_t i = 0; i < 256; i++) {
+    for(size_t i = 0; i < MAX_SYSCALL_NUMBER; i++) {
         syscall_table[i].num_params = 6;
         syscall_table[i].handlers.handler6 = syscall_sys_invalid;
     }
@@ -230,4 +235,6 @@ void userspace_init() {
 
     SYSCALL_DISPATCHER(SYS_MEM_ALLOC, syscall_sys_mem_alloc, 3);
     SYSCALL_DISPATCHER(SYS_MEM_FREE, syscall_sys_mem_free, 1);
+
+    SYSCALL_DISPATCHER(SYS_SET_FSBASE, syscall_sys_set_fsbase, 1);
 }

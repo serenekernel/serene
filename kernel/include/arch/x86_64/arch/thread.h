@@ -1,6 +1,6 @@
 #pragma once
-#include <memory/memory.h>
 #include <common/thread.h>
+#include <memory/memory.h>
 #include <stddef.h>
 
 typedef struct thread {
@@ -11,6 +11,7 @@ typedef struct thread {
     thread_common_t thread_common;
 
     void* fpu_area;
+    uintptr_t fsbase;
 
     struct thread* sched_next;
     struct thread* proc_next;

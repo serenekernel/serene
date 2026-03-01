@@ -33,6 +33,8 @@ typedef enum : uint64_t {
 
     SYS_MEM_ALLOC = 128,
     SYS_MEM_FREE = 129,
+
+    SYS_SET_FSBASE = 256
 } syscall_nr_t;
 
 typedef enum : int64_t {

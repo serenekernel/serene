@@ -50,3 +50,10 @@ syscall_ret_t syscall_sys_start(uint64_t process_handle_value, uint64_t entry) {
 
     return SYSCALL_RET_VALUE(0);
 }
+
+
+syscall_ret_t syscall_sys_set_fsbase(uint64_t fsbase) {
+    thread_t* current_thread = CPU_LOCAL_READ(current_thread);
+    current_thread->fsbase = fsbase;
+    return SYSCALL_RET_VALUE(0);
+}
