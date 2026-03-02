@@ -12,6 +12,7 @@ typedef struct thread {
 
     void* fpu_area;
     uintptr_t fsbase;
+    uintptr_t gsbase;
 
     struct thread* sched_next;
     struct thread* proc_next;

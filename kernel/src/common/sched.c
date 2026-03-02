@@ -58,13 +58,10 @@ void reaper_thread() {
                         current = CPU_LOCAL_READ(cpu_scheduler)->thread_head;
                     }
 
-                    printf("to_reap->thread_rsp: 0x%llx\n", to_reap->thread_rsp);
                     printf("to_reap->kernel_rsp: 0x%llx\n", to_reap->kernel_rsp);
                     printf("to_reap: 0x%llx\n", to_reap);
 
                     // Save pointers before releasing lock
-                    vm_allocator_t* thread_addr_space = to_reap->thread_common.address_space;
-                    virt_addr_t thread_rsp = to_reap->thread_rsp;
                     virt_addr_t kernel_rsp = to_reap->kernel_rsp;
                     virt_addr_t thread_ptr = (virt_addr_t) to_reap;
                     uint32_t tid = to_reap->thread_common.tid;
@@ -73,7 +70,6 @@ void reaper_thread() {
                     spinlock_critical_unlock(&g_sched_lock, __spin_flags);
 
                     fpu_free_area(to_reap->fpu_area);
-                    vmm_free(thread_addr_space, thread_rsp);
                     vmm_free(&kernel_allocator, kernel_rsp);
                     vmm_free(&kernel_allocator, thread_ptr);
                     printf("Reaped thread TID %u\n", tid);
@@ -136,6 +132,11 @@ void reaper_thread() {
 static uint32_t next_tid = 1;
 extern void __jump_to_idle_thread(virt_addr_t stack_ptr, virt_addr_t entry_point);
 
+void sched_start_thread(thread_t* thread) {
+    thread->thread_common.status = THREAD_STATUS_READY;
+    sched_add_thread(thread);
+}
+
 thread_t* __sched_get_thread(uint32_t tid) {
     thread_t* current = CPU_LOCAL_READ(cpu_scheduler)->thread_head;
     while(current != nullptr) {
@@ -193,12 +194,13 @@ void __userspace_init();
 void sched_arch_init_thread(thread_t* thread, virt_addr_t entry_point);
 
 
-thread_t* sched_thread_common_init(vm_allocator_t* address_space, virt_addr_t entry_point) {
+thread_t* sched_thread_common_init(vm_allocator_t* address_space, virt_addr_t entry_point, virt_addr_t thread_stack) {
     thread_t* thread = (thread_t*) vmm_alloc_object(&kernel_allocator, sizeof(thread_t));
     thread->thread_common.process = nullptr;
     thread->thread_common.tid = next_tid++;
     thread->thread_common.address_space = address_space;
-
+    thread->fsbase = 0xdeadbeaf;
+    thread->gsbase = 0xdeadbeaf;
     if(address_space->is_user) {
         thread->fpu_area = fpu_alloc_area();
     } else {
@@ -208,22 +210,24 @@ thread_t* sched_thread_common_init(vm_allocator_t* address_space, virt_addr_t en
     thread->sched_next = nullptr;
     thread->proc_next = nullptr;
 
-    thread->thread_rsp = vmm_alloc_backed(address_space, THREAD_STACK_SIZE_PAGES, (address_space->is_user ? VM_ACCESS_USER : VM_ACCESS_KERNEL), VM_CACHE_NORMAL, VM_READ_WRITE, true) + (THREAD_STACK_SIZE_PAGES * PAGE_SIZE_DEFAULT) - 8;
+    thread->thread_rsp = thread_stack;
     thread->kernel_rsp = vmm_alloc_backed(&kernel_allocator, THREAD_KERNEL_STACK_SIZE_PAGES, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true) + (THREAD_KERNEL_STACK_SIZE_PAGES * PAGE_SIZE_DEFAULT);
     thread->syscall_rsp = 0;
 
     sched_arch_init_thread(thread, entry_point);
-
-    thread->thread_common.status = THREAD_STATUS_READY;
     return thread;
 }
 
 thread_t* sched_thread_kernel_init(virt_addr_t entry_point) {
-    return sched_thread_common_init(&kernel_allocator, entry_point);
+    virt_addr_t stack = vmm_alloc_backed(&kernel_allocator, THREAD_STACK_SIZE_PAGES, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true) + (THREAD_STACK_SIZE_PAGES * PAGE_SIZE_DEFAULT) - 8;
+    thread_t* thread = sched_thread_common_init(&kernel_allocator, entry_point, stack);
+    thread->thread_common.status = THREAD_STATUS_READY;
+    return thread;
 }
 
-thread_t* sched_thread_user_init(vm_allocator_t* address_space, virt_addr_t entry_point) {
-    return sched_thread_common_init(address_space, entry_point);
+thread_t* sched_thread_user_init(vm_allocator_t* address_space, virt_addr_t entry_point, virt_addr_t stack) {
+    thread_t* thread = sched_thread_common_init(address_space, entry_point, stack);
+    return thread;
 }
 
 thread_t* find_next_thread() {

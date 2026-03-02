@@ -8,6 +8,7 @@
 #include <common/handle.h>
 #include <common/process.h>
 #include <common/sched.h>
+#include <common/syscalls/syscall.h>
 #include <common/userspace.h>
 #include <memory/memobj.h>
 #include <memory/vmm.h>
@@ -47,6 +48,7 @@ const char* convert_syscall_number(syscall_nr_t nr) {
     switch(nr) {
         case SYS_EXIT:                  return "SYS_EXIT";
         case SYS_PROCESS_CREATE_EMPTY:  return "SYS_PROCESS_CREATE_EMPTY";
+        case SYS_PROCESS_THREAD_CREATE: return "SYS_PROCESS_THREAD_CREATE";
         case SYS_START:                 return "SYS_START";
         case SYS_MEMOBJ_CREATE:         return "SYS_MEMOBJ_CREATE";
         case SYS_MAP:                   return "SYS_MAP";
@@ -160,37 +162,6 @@ syscall_ret_t dispatch_syscall(uint64_t arg1, uint64_t arg2, uint64_t arg3, uint
     syscall_table[nr].num_params = __num_params;                  \
     syscall_table[nr].handlers.handler##__num_params = __handler;
 
-syscall_ret_t syscall_sys_exit(uint64_t exit_code);
-
-syscall_ret_t syscall_sys_process_create_empty();
-syscall_ret_t syscall_sys_start(uint64_t process_handle_value, uint64_t entry);
-syscall_ret_t syscall_sys_memobj_create(uint64_t size, uint64_t perms);
-syscall_ret_t syscall_sys_map(uint64_t process_handle_value, uint64_t memobj_handle_value, uint64_t vaddr, uint64_t perms, uint64_t flags);
-syscall_ret_t syscall_sys_copy_to(uint64_t process_handle_value, uint64_t dst, uint64_t src, uint64_t size);
-
-syscall_ret_t syscall_sys_cap_port_grant(uint64_t start_port, uint64_t num_ports);
-syscall_ret_t syscall_sys_cap_ipc_discovery();
-syscall_ret_t syscall_sys_cap_initramfs();
-
-syscall_ret_t syscall_sys_wait_for(uint64_t handle_value);
-
-syscall_ret_t syscall_sys_endpoint_create();
-syscall_ret_t syscall_sys_endpoint_destroy(uint64_t handle_value);
-syscall_ret_t syscall_sys_endpoint_send(uint64_t handle_value, uint64_t payload, uint64_t payload_length, uint64_t reply_handle_value);
-syscall_ret_t syscall_sys_endpoint_receive(uint64_t handle_value);
-syscall_ret_t syscall_sys_endpoint_free_message(uint64_t message_ptr);
-syscall_ret_t syscall_sys_endpoint_get_owner(uint64_t handle_value);
-
-syscall_ret_t syscall_sys_handle_dup(uint64_t handle_value);
-syscall_ret_t syscall_sys_handle_close(uint64_t handle_value);
-syscall_ret_t syscall_sys_handle_get_owner(uint64_t handle_value);
-syscall_ret_t syscall_sys_handle_set_owner(uint64_t handle_value, uint64_t owner_pid_value);
-
-syscall_ret_t syscall_sys_mem_alloc(uint64_t size, uint64_t align, uint64_t perms);
-syscall_ret_t syscall_sys_mem_free(uint64_t addr);
-
-syscall_ret_t syscall_sys_set_fsbase(uint64_t fsbase);
-
 void userspace_init() {
     uint64_t efer = __rdmsr(IA32_EFER);
     efer |= (1 << 0);
@@ -214,6 +185,7 @@ void userspace_init() {
     SYSCALL_DISPATCHER(SYS_MEMOBJ_CREATE, syscall_sys_memobj_create, 2);
     SYSCALL_DISPATCHER(SYS_MAP, syscall_sys_map, 5);
     SYSCALL_DISPATCHER(SYS_COPY_TO, syscall_sys_copy_to, 4);
+    SYSCALL_DISPATCHER(SYS_PROCESS_THREAD_CREATE, syscall_sys_create_thread, 3);
 
     SYSCALL_DISPATCHER(SYS_CAP_PORT_GRANT, syscall_sys_cap_port_grant, 2);
 

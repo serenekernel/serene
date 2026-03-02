@@ -94,6 +94,9 @@ void sched_arch_yield_prepare(thread_t* current_thread, thread_t* next_thread) {
     // @todo: what the fuck...
     x86_64_set_rsp0_stack(next_thread->kernel_rsp);
 
+    current_thread->fsbase = __rdmsr(IA32_FS_BASE_MSR);
+    current_thread->gsbase = __rdmsr(IA32_KERNEL_GS_BASE_MSR);
+
     // if we aren't comming from a process or that process has no ioports then no need to clear the map it's already empty
     if(current_thread->thread_common.process != nullptr && current_thread->thread_common.process->io_perm_map_num != 0) {
         tss_io_clear(CPU_LOCAL_READ(cpu_tss));
@@ -106,5 +109,5 @@ void sched_arch_yield_prepare(thread_t* current_thread, thread_t* next_thread) {
     }
 
     __wrmsr(IA32_FS_BASE_MSR, next_thread->fsbase);
-    __wrmsr(IA32_KERNEL_GS_BASE_MSR, 0xcafebabe);
+    __wrmsr(IA32_KERNEL_GS_BASE_MSR, next_thread->gsbase);
 }

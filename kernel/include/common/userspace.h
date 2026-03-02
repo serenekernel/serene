@@ -7,10 +7,10 @@ typedef enum : uint64_t {
 
     SYS_PROCESS_CREATE_EMPTY = 16,
     SYS_START = 17,
-
     SYS_MEMOBJ_CREATE = 18,
     SYS_MAP = 19,
     SYS_COPY_TO = 20,
+    SYS_PROCESS_THREAD_CREATE = 21,
 
     SYS_CAP_PORT_GRANT = 32,
 

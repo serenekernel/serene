@@ -86,7 +86,7 @@ void ipi_handle() {
     ipi_t* ipi = &g_ipi_table[arch_get_core_id()].ipi;
 
     if(ipi->type == IPI_TLB_FLUSH) {
-        printf("Received TLB flush IPI for address 0x%lx\n", ipi->tlb_flush.virt_addr);
+        // printf("Received TLB flush IPI for address 0x%lx\n", ipi->tlb_flush.virt_addr);
         vm_flush_page_raw(ipi->tlb_flush.virt_addr);
     }
 

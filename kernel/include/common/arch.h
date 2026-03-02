@@ -48,3 +48,9 @@ void arch_restore_wp(bool __prev);
 #define ENTER_UAP_SECTION() bool __uap_prev = arch_disable_uap();
 
 #define EXIT_UAP_SECTION() arch_restore_uap(__uap_prev);
+
+#define ENTER_UNINTERRUPTIBLE_SECTION()     \
+    bool __irq_prev = interrupts_enabled(); \
+    disable_interrupts();
+#define EXIT_UNINTERRUPTIBLE_SECTION()  \
+    if(__irq_prev) enable_interrupts();
