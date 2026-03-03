@@ -28,6 +28,7 @@ void vmm_kernel_init(vm_allocator_t* allocator, virt_addr_t start, virt_addr_t e
     allocator->start = start;
     allocator->end = end;
     allocator->vm_tree.root = nullptr;
+    allocator->lock = 0;
 #ifdef __ARCH_AARCH64__
     allocator->paging_structures_base = 0;
 #endif
@@ -43,6 +44,7 @@ void vmm_user_init(vm_allocator_t* allocator, virt_addr_t start, virt_addr_t end
     allocator->start = start;
     allocator->end = end;
     allocator->vm_tree.root = nullptr;
+    allocator->lock = 0;
 #ifdef __ARCH_AARCH64__
     allocator->paging_structures_base = 0;
 #endif
@@ -64,6 +66,7 @@ void vmm_destory_allocator(vm_allocator_t* allocator) {
 
 vm_node_t* vmm_alloc_raw(vm_allocator_t* allocator, size_t page_count) {
     size_t total_size = page_count * PAGE_SIZE_DEFAULT;
+    uint64_t flags = spinlock_critical_lock(&allocator->lock);
     virt_addr_t alloc_addr = rb_find_first_gap(&allocator->vm_tree, allocator->start, allocator->end, total_size);
     phys_addr_t node_phys = pmm_alloc_page();
     assert(alloc_addr != 0 && "vmm_alloc_raw: no suitable virtual address range found");
@@ -74,6 +77,7 @@ vm_node_t* vmm_alloc_raw(vm_allocator_t* allocator, size_t page_count) {
     new_node->size = total_size;
 
     rb_insert(&allocator->vm_tree, &new_node->rb_node);
+    spinlock_critical_unlock(&allocator->lock, flags);
 
     return new_node;
 }
@@ -115,8 +119,10 @@ virt_addr_t vmm_alloc_backed(vm_allocator_t* allocator, size_t page_count, vm_ac
 virt_addr_t vmm_try_alloc_backed(vm_allocator_t* allocator, virt_addr_t address, size_t page_count, vm_access_t access, vm_cache_t cache, vm_flags_t flags, bool zero_fill) {
     size_t total_size = page_count * PAGE_SIZE_DEFAULT;
 
+    uint64_t irq_flags = spinlock_critical_lock(&allocator->lock);
     rb_node_t* existing_node = rb_find_exact(&allocator->vm_tree, address);
     if(existing_node != nullptr) {
+        spinlock_critical_unlock(&allocator->lock, irq_flags);
         return 0;
     }
 
@@ -125,6 +131,7 @@ virt_addr_t vmm_try_alloc_backed(vm_allocator_t* allocator, virt_addr_t address,
     if(lower_node != nullptr) {
         vm_node_t* lower_vm_node = (vm_node_t*) lower_node;
         if(lower_vm_node->base + lower_vm_node->size > address) {
+            spinlock_critical_unlock(&allocator->lock, irq_flags);
             return 0;
         }
     }
@@ -133,12 +140,14 @@ virt_addr_t vmm_try_alloc_backed(vm_allocator_t* allocator, virt_addr_t address,
     if(upper_node != nullptr) {
         vm_node_t* upper_vm_node = (vm_node_t*) upper_node;
         if(address + total_size > upper_vm_node->base) {
+            spinlock_critical_unlock(&allocator->lock, irq_flags);
             return 0;
         }
     }
 
     phys_addr_t node_phys = pmm_alloc_page();
     if(node_phys == 0) {
+        spinlock_critical_unlock(&allocator->lock, irq_flags);
         return 0;
     }
 
@@ -148,6 +157,7 @@ virt_addr_t vmm_try_alloc_backed(vm_allocator_t* allocator, virt_addr_t address,
     new_node->options_type = VM_OPTIONS_BACKED;
 
     rb_insert(&allocator->vm_tree, &new_node->rb_node);
+    spinlock_critical_unlock(&allocator->lock, irq_flags);
 
     for(size_t i = 0; i < page_count; i++) {
         phys_addr_t phys = pmm_alloc_page();
@@ -182,43 +192,50 @@ virt_addr_t vmm_copy_read_only(vm_allocator_t* dest_alloc, vm_allocator_t* src_a
 
 void vmm_free(vm_allocator_t* allocator, virt_addr_t addr) {
     bool irq = interrupts_enabled();
+    uint64_t irq_flags = spinlock_critical_lock(&allocator->lock);
     rb_node_t* node = rb_find_exact(&allocator->vm_tree, addr);
-    if(node) {
-        rb_remove(&allocator->vm_tree, node);
-        vm_node_t* vm_node = (vm_node_t*) node;
-
-        if(vm_node->options_type == VM_OPTIONS_BACKED || vm_node->options_type == VM_OPTIONS_DEMAND) {
-            size_t page_count = vm_node->size / PAGE_SIZE_DEFAULT;
-            // Enable interrupts during unmap to allow IPI processing
-            if(!irq) enable_interrupts();
-            for(size_t i = 0; i < page_count; i++) {
-                phys_addr_t phys = vm_resolve(allocator, vm_node->base + (i * PAGE_SIZE_DEFAULT));
-                if(phys == 0) {
-                    continue;
-                }
-                vm_unmap_page(allocator, vm_node->base + (i * PAGE_SIZE_DEFAULT));
-                pmm_free_page(phys);
-            }
-            if(!irq) disable_interrupts();
-        } else if(vm_node->options_type == VM_OPTIONS_MEMOBJ) {
-            // for memobj mappings unmap pages but don't free physical memory
-            // the memobj owns the physical pages
-            size_t page_count = vm_node->size / PAGE_SIZE_DEFAULT;
-            // Enable interrupts during unmap to allow IPI processing
-            if(!irq) enable_interrupts();
-            for(size_t i = 0; i < page_count; i++) {
-                vm_unmap_page(allocator, vm_node->base + (i * PAGE_SIZE_DEFAULT));
-            }
-            if(!irq) disable_interrupts();
-
-            memobj_t* memobj = vm_node->options.memobj.memobj;
-            if(memobj) {
-                memobj_unref(memobj);
-            }
-        }
-
-        pmm_free_page((phys_addr_t) FROM_HHDM(vm_node));
+    if(!node) {
+        spinlock_critical_unlock(&allocator->lock, irq_flags);
+        // @todo: uhhh should this happen?
+        return;
     }
+
+    rb_remove(&allocator->vm_tree, node);
+    spinlock_critical_unlock(&allocator->lock, irq_flags);
+
+    vm_node_t* vm_node = (vm_node_t*) node;
+
+    if(vm_node->options_type == VM_OPTIONS_BACKED || vm_node->options_type == VM_OPTIONS_DEMAND) {
+        size_t page_count = vm_node->size / PAGE_SIZE_DEFAULT;
+        // Enable interrupts during unmap to allow IPI processing
+        if(!irq) enable_interrupts();
+        for(size_t i = 0; i < page_count; i++) {
+            phys_addr_t phys = vm_resolve(allocator, vm_node->base + (i * PAGE_SIZE_DEFAULT));
+            if(phys == 0) {
+                continue;
+            }
+            vm_unmap_page(allocator, vm_node->base + (i * PAGE_SIZE_DEFAULT));
+            pmm_free_page(phys);
+        }
+        if(!irq) disable_interrupts();
+    } else if(vm_node->options_type == VM_OPTIONS_MEMOBJ) {
+        // for memobj mappings unmap pages but don't free physical memory
+        // the memobj owns the physical pages
+        size_t page_count = vm_node->size / PAGE_SIZE_DEFAULT;
+        // Enable interrupts during unmap to allow IPI processing
+        if(!irq) enable_interrupts();
+        for(size_t i = 0; i < page_count; i++) {
+            vm_unmap_page(allocator, vm_node->base + (i * PAGE_SIZE_DEFAULT));
+        }
+        if(!irq) disable_interrupts();
+
+        memobj_t* memobj = vm_node->options.memobj.memobj;
+        if(memobj) {
+            memobj_unref(memobj);
+        }
+    }
+
+    pmm_free_page((phys_addr_t) FROM_HHDM(vm_node));
 }
 
 #define MAP_SEGMENT(name, map_type)                                                                                        \

@@ -1,3 +1,4 @@
+#pragma once
 #include "common/interrupts.h"
 
 #include <common/arch.h>

@@ -1,4 +1,5 @@
 #pragma once
+#include <common/spinlock.h>
 #include <lib/sparse_array.h>
 #include <memory/memory.h>
 #include <rbtree.h>
@@ -47,6 +48,7 @@ typedef struct {
     phys_addr_t kernel_paging_structures_base;
 
     rb_tree_t vm_tree;
+    spinlock_t lock;
 } vm_allocator_t;
 
 extern vm_allocator_t kernel_allocator;

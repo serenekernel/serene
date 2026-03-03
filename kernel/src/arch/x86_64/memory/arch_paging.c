@@ -184,6 +184,7 @@ void vm_unmap_pages_continuous(vm_allocator_t* allocator, virt_addr_t virt_addr,
 
 
 void vm_map_page(vm_allocator_t* allocator, virt_addr_t virt_addr, phys_addr_t phys_addr, vm_access_t access, vm_cache_t cache, vm_flags_t flags) {
+    uint64_t irq_flags = spinlock_critical_lock(&allocator->lock);
     vm_flags_data_t flags_data = convert_vm_flags(flags);
     arch_memory_barrier();
 
@@ -199,9 +200,11 @@ void vm_map_page(vm_allocator_t* allocator, virt_addr_t virt_addr, phys_addr_t p
     uint16_t pt_index = (uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PT);
     pt[pt_index] = page_entry;
     arch_memory_barrier();
+    spinlock_critical_unlock(&allocator->lock, irq_flags);
 }
 
 void vm_reprotect_page(vm_allocator_t* allocator, virt_addr_t virt_addr, vm_access_t access, vm_cache_t cache, vm_flags_t flags) {
+    uint64_t irq_flags = spinlock_critical_lock(&allocator->lock);
     vm_flags_data_t flags_data = convert_vm_flags(flags);
     uint64_t imtermediate_flags = PAGE_PRESENT_BIT | PAGE_RW_BIT;
 
@@ -217,29 +220,37 @@ void vm_reprotect_page(vm_allocator_t* allocator, virt_addr_t virt_addr, vm_acce
 
     pt[(uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PT)] = page_entry;
     vm_flush_page_dispatch(virt_addr);
+    spinlock_critical_unlock(&allocator->lock, irq_flags);
 }
 
 phys_addr_t vm_resolve(vm_allocator_t* allocator, virt_addr_t virt_addr) {
+    uint64_t irq_flags = spinlock_critical_lock(&allocator->lock);
     uint64_t* pt = walk_if_exists(allocator, virt_addr);
     if(pt == NULL) {
+        spinlock_critical_unlock(&allocator->lock, irq_flags);
         return 0;
     }
 
     uint64_t page_entry = pt[(uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PT)];
     if(!(page_entry & PAGE_PRESENT_BIT)) {
+        spinlock_critical_unlock(&allocator->lock, irq_flags);
         return 0;
     }
 
+    spinlock_critical_unlock(&allocator->lock, irq_flags);
     return page_entry & SMALL_PAGE_ADDRESS_MASK;
 }
 
 phys_addr_t vm_resolve_protections(vm_allocator_t* allocator, virt_addr_t virt_addr, vm_flags_t* out_protection) {
+    uint64_t irq_flags = spinlock_critical_lock(&allocator->lock);
     uint64_t* pt = walk_if_exists(allocator, virt_addr);
     if(pt == NULL) {
+        spinlock_critical_unlock(&allocator->lock, irq_flags);
         return 0;
     }
 
     uint64_t page_entry = pt[(uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PT)];
+    spinlock_critical_unlock(&allocator->lock, irq_flags);
     if(!(page_entry & PAGE_PRESENT_BIT)) {
         return 0;
     }
@@ -257,20 +268,27 @@ phys_addr_t vm_resolve_protections(vm_allocator_t* allocator, virt_addr_t virt_a
         protections |= VM_GLOBAL;
     }
 
-    *out_protection = protections;
+
+    if(out_protection) {
+        *out_protection = protections;
+    }
+
     return page_entry & SMALL_PAGE_ADDRESS_MASK;
 }
 
 void vm_unmap_page(vm_allocator_t* allocator, virt_addr_t virt_addr) {
+    uint64_t irq_flags = spinlock_critical_lock(&allocator->lock);
     arch_memory_barrier();
     uint64_t* pt = walk_if_exists(allocator, virt_addr);
     if(pt == NULL) {
+        spinlock_critical_unlock(&allocator->lock, irq_flags);
         return;
     }
 
     pt[(uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PT)] = 0;
     vm_flush_page_dispatch(virt_addr);
     arch_memory_barrier();
+    spinlock_critical_unlock(&allocator->lock, irq_flags);
 }
 
 
@@ -403,9 +421,11 @@ bool vm_handle_page_fault(vm_fault_reason_t reason, virt_addr_t fault_address) {
 }
 
 void vm_remap_page(vm_allocator_t* allocator, virt_addr_t virt_addr, phys_addr_t new_phys_addr) {
+    uint64_t irq_flags = spinlock_critical_lock(&allocator->lock);
     arch_memory_barrier();
     uint64_t* pt = walk_if_exists(allocator, virt_addr);
     if(pt == NULL) {
+        spinlock_critical_unlock(&allocator->lock, irq_flags);
         return;
     }
 
@@ -415,4 +435,5 @@ void vm_remap_page(vm_allocator_t* allocator, virt_addr_t virt_addr, phys_addr_t
     pt[(uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PT)] = page_entry | PAGE_PRESENT_BIT;
     vm_flush_page_dispatch(virt_addr);
     arch_memory_barrier();
+    spinlock_critical_unlock(&allocator->lock, irq_flags);
 }
