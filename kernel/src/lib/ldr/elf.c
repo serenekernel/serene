@@ -139,9 +139,9 @@ void kproc_create(const elf64_elf_header_t* elf_header, kcreate_proc_flags flags
     process_t* process = process_create();
     load_elf_exec(elf_header, process->address_space);
 
-    virt_addr_t stack = vmm_alloc_backed(process->address_space, 8 * PAGE_SIZE_DEFAULT, VM_ACCESS_USER, VM_CACHE_NORMAL, VM_READ_WRITE, true) + (8 * PAGE_SIZE_DEFAULT) - 8;
+    virt_addr_t stack = vmm_alloc_backed(process->address_space, 8 * PAGE_SIZE_DEFAULT, VM_ACCESS_USER, VM_CACHE_NORMAL, VM_READ_WRITE, true) + (8 * PAGE_SIZE_DEFAULT);
 
-    thread_t* thread = sched_thread_user_init(process->address_space, (virt_addr_t) elf_header->e_entry, stack);
+    thread_t* thread = sched_thread_user_init(process->address_space, (virt_addr_t) elf_header->e_entry, ALIGN_DOWN(stack, 8));
     if(flags == KCREATE_PROC_SUSPEND) {
         thread->thread_common.status = THREAD_STATUS_BLOCKED;
         thread->thread_common.block_reason = THREAD_BLOCK_REASON_NONE;

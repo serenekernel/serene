@@ -49,6 +49,7 @@ const char* convert_syscall_number(syscall_nr_t nr) {
         case SYS_EXIT:                  return "SYS_EXIT";
         case SYS_PROCESS_CREATE_EMPTY:  return "SYS_PROCESS_CREATE_EMPTY";
         case SYS_PROCESS_THREAD_CREATE: return "SYS_PROCESS_THREAD_CREATE";
+        case SYS_PROCESS_GET_PID:       return "SYS_PROCESS_GET_PID";
         case SYS_START:                 return "SYS_START";
         case SYS_MEMOBJ_CREATE:         return "SYS_MEMOBJ_CREATE";
         case SYS_MAP:                   return "SYS_MAP";
@@ -84,6 +85,8 @@ const char* convert_syscall_ret(syscall_ret_t ret) {
         case SYSCALL_ERR_PERMISSION_DENIED: return "SYSCALL_ERR_PERMISSION_DENIED";
         case SYSCALL_ERR_OUT_OF_MEMORY:     return "SYSCALL_ERR_OUT_OF_MEMORY";
         case SYSCALL_ERR_ADDRESS_IN_USE:    return "SYSCALL_ERR_ADDRESS_IN_USE";
+        case SYSCALL_ERR_INVALID_ADDRESS:   return "SYSCALL_ERR_INVALID_ADDRESS";
+        case SYSCALL_ERR_INTERNAL_ERROR:    return "SYSCALL_ERR_INTERNAL_ERROR";
         default:                            return "UNKNOWN_SYSCALL_ERROR";
     }
 }
@@ -186,6 +189,7 @@ void userspace_init() {
     SYSCALL_DISPATCHER(SYS_MAP, syscall_sys_map, 5);
     SYSCALL_DISPATCHER(SYS_COPY_TO, syscall_sys_copy_to, 4);
     SYSCALL_DISPATCHER(SYS_PROCESS_THREAD_CREATE, syscall_sys_create_thread, 3);
+    SYSCALL_DISPATCHER(SYS_PROCESS_GET_PID, syscall_sys_get_pid, 1);
 
     SYSCALL_DISPATCHER(SYS_CAP_PORT_GRANT, syscall_sys_cap_port_grant, 2);
 

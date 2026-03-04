@@ -1,6 +1,6 @@
 #pragma once
-#include <memory/memory.h>
 #include <common/thread.h>
+#include <memory/memory.h>
 #include <stddef.h>
 
 typedef struct thread {

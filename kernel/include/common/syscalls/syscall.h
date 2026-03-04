@@ -25,6 +25,7 @@ syscall_ret_t syscall_sys_endpoint_send(uint64_t handle_value, uint64_t payload,
 syscall_ret_t syscall_sys_endpoint_receive(uint64_t handle_value);
 syscall_ret_t syscall_sys_endpoint_free_message(uint64_t message_ptr);
 syscall_ret_t syscall_sys_endpoint_get_owner(uint64_t handle_value);
+syscall_ret_t syscall_sys_get_pid(uint64_t process_handle_value);
 
 syscall_ret_t syscall_sys_handle_dup(uint64_t handle_value);
 syscall_ret_t syscall_sys_handle_close(uint64_t handle_value);

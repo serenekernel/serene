@@ -188,11 +188,24 @@ void memset_vm(vm_allocator_t* dest_alloc, virt_addr_t dest, int c, size_t page_
     return;
 }
 
-void memcpy_um_um_unaligned(vm_allocator_t* dest_alloc, vm_allocator_t* src_alloc, virt_addr_t dest, virt_addr_t src, size_t length) {
+[[nodiscard]] bool memcpy_um_um_unaligned(vm_allocator_t* dest_alloc, vm_allocator_t* src_alloc, virt_addr_t dest, virt_addr_t src, size_t length) {
     virt_addr_t src_page_aligned = ALIGN_DOWN(src, PAGE_SIZE_DEFAULT);
     virt_addr_t dest_page_aligned = ALIGN_DOWN(dest, PAGE_SIZE_DEFAULT);
     size_t src_offset = src - src_page_aligned;
     size_t dest_offset = dest - dest_page_aligned;
+
+
+    for(size_t i = 0; i < length; i++) {
+        size_t src_page = (src_offset + i) / PAGE_SIZE_DEFAULT;
+        size_t dest_page = (dest_offset + i) / PAGE_SIZE_DEFAULT;
+
+        phys_addr_t src_phys = vm_resolve(src_alloc, src_page_aligned + src_page * PAGE_SIZE_DEFAULT);
+        phys_addr_t dest_phys = vm_resolve(dest_alloc, dest_page_aligned + dest_page * PAGE_SIZE_DEFAULT);
+        if(src_phys == 0 || dest_phys == 0) {
+            printf("memcpy_um_um_unaligned: address not mapped (src=0x%lx dest=0x%lx)\n", src + i, dest + i);
+            return false;
+        }
+    }
 
     for(size_t i = 0; i < length; i++) {
         size_t src_page = (src_offset + i) / PAGE_SIZE_DEFAULT;
@@ -207,4 +220,7 @@ void memcpy_um_um_unaligned(vm_allocator_t* dest_alloc, vm_allocator_t* src_allo
         uint8_t* dest_byte = (uint8_t*) TO_HHDM(dest_phys + dest_page_offset);
         *dest_byte = *src_byte;
     }
+
+
+    return true;
 }

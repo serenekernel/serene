@@ -9,6 +9,7 @@
 #include <common/sched.h>
 #include <common/userspace.h>
 #include <memory/memobj.h>
+#include <stdint.h>
 #include <string.h>
 
 
@@ -26,6 +27,22 @@ syscall_ret_t syscall_sys_process_create_empty() {
     return SYSCALL_RET_VALUE(handle);
 }
 
+syscall_ret_t syscall_sys_get_pid(uint64_t process_handle_value) {
+    if(process_handle_value == 0) {
+        thread_t* current_thread = CPU_LOCAL_READ(current_thread);
+        return SYSCALL_RET_VALUE(current_thread->thread_common.process->pid);
+    }
+
+    handle_t process_handle = *(handle_t*) &process_handle_value;
+
+    SYSCALL_ASSERT_HANDLE_TYPE(process_handle, HANDLE_TYPE_PROCESS);
+    handle_meta_t* process_meta = handle_get(process_handle);
+
+    process_t* target_process = (process_t*) process_meta->data;
+    SYSCALL_ASSERT_PARAM(target_process != NULL);
+
+    return SYSCALL_RET_VALUE(target_process->pid);
+}
 
 syscall_ret_t syscall_sys_create_thread(uint64_t process_handle_value, uint64_t entry, uint64_t stack) {
     handle_t process_handle = *(handle_t*) &process_handle_value;

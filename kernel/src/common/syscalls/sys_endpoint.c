@@ -65,7 +65,10 @@ syscall_ret_t syscall_sys_endpoint_send(uint64_t handle_value, uint64_t payload,
     EXIT_UAP_SECTION()
     EXIT_ADDRESS_SWITCH();
 
-    memcpy_um_um_unaligned(endpoint->owner->thread_common.address_space, thread->thread_common.address_space, (virt_addr_t) message->payload, (virt_addr_t) payload, payload_length);
+    if(!memcpy_um_um_unaligned(endpoint->owner->thread_common.address_space, thread->thread_common.address_space, (virt_addr_t) message->payload, (virt_addr_t) payload, payload_length)) {
+        vmm_free(endpoint->owner->thread_common.address_space, (virt_addr_t) message);
+        assert(false && "invalid payload address in syscall_sys_endpoint_send");
+    }
 
     bool result = endpoint_send(endpoint, message);
     if(!result) {

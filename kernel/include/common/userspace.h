@@ -11,6 +11,7 @@ typedef enum : uint64_t {
     SYS_MAP = 19,
     SYS_COPY_TO = 20,
     SYS_PROCESS_THREAD_CREATE = 21,
+    SYS_PROCESS_GET_PID = 22,
 
     SYS_CAP_PORT_GRANT = 32,
 
@@ -34,7 +35,9 @@ typedef enum : uint64_t {
     SYS_MEM_ALLOC = 128,
     SYS_MEM_FREE = 129,
 
-    SYS_SET_FSBASE = 256
+    SYS_SET_FSBASE = 256,
+
+
 } syscall_nr_t;
 
 typedef enum : int64_t {
@@ -45,6 +48,8 @@ typedef enum : int64_t {
     SYSCALL_ERR_PERMISSION_DENIED = -5,
     SYSCALL_ERR_OUT_OF_MEMORY = -6,
     SYSCALL_ERR_ADDRESS_IN_USE = -7,
+    SYSCALL_ERR_INVALID_ADDRESS = -8,
+    SYSCALL_ERR_INTERNAL_ERROR = -9,
 } syscall_err_t;
 
 typedef struct {

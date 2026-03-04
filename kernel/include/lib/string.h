@@ -22,4 +22,4 @@ void memcpy_um_km(vm_allocator_t* src_alloc, virt_addr_t dest, virt_addr_t src, 
 // sets n pages in userspace dest to value c
 void memset_vm(vm_allocator_t* dest_alloc, virt_addr_t dest, int c, size_t page_count);
 
-void memcpy_um_um_unaligned(vm_allocator_t* dest_alloc, vm_allocator_t* src_alloc, virt_addr_t dest, virt_addr_t src, size_t length);
+[[nodiscard]] bool memcpy_um_um_unaligned(vm_allocator_t* dest_alloc, vm_allocator_t* src_alloc, virt_addr_t dest, virt_addr_t src, size_t length);
