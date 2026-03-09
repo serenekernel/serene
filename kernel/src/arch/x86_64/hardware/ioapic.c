@@ -1,9 +1,10 @@
 #include "common/io.h"
 #include "memory/memory.h"
-#include <common/acpi.h>
 #include "memory/vmm.h"
+
 #include <arch/hardware/lapic.h>
 #include <assert.h>
+#include <common/acpi.h>
 #include <stddef.h>
 #include <stdio.h>
 // I/O APIC registers
@@ -178,7 +179,7 @@ void dump_madt_entry(acpi_madt_entry_hdr_t* hdr) {
 }
 
 void madt_first_pass() {
-    acpi_madt_t* madt = (acpi_madt_t*)acpi_find_table(ACPI_MADT_SIGNATURE);
+    acpi_madt_t* madt = (acpi_madt_t*) acpi_find_table(ACPI_MADT_SIGNATURE);
     printf("MADT first pass\n");
     for(size_t offset = sizeof(acpi_madt_t); offset < madt->header.length;) {
         acpi_madt_entry_hdr_t* entry = (acpi_madt_entry_hdr_t*) ((uintptr_t) madt + offset);
@@ -194,7 +195,7 @@ void madt_first_pass() {
 }
 
 void madt_second_pass() {
-    acpi_madt_t* madt = (acpi_madt_t*)acpi_find_table(ACPI_MADT_SIGNATURE);
+    acpi_madt_t* madt = (acpi_madt_t*) acpi_find_table(ACPI_MADT_SIGNATURE);
     printf("MADT second pass\n");
     for(size_t offset = sizeof(acpi_madt_t); offset < madt->header.length;) {
         acpi_madt_entry_hdr_t* entry = (acpi_madt_entry_hdr_t*) ((uintptr_t) madt + offset);
@@ -204,7 +205,6 @@ void madt_second_pass() {
             if(iso_entry->source != iso_entry->gsi) {
                 printf("ISO: IRQ %d -> GSI %d\n", iso_entry->source, iso_entry->gsi);
             }
-
         }
 
         offset += entry->length;
@@ -216,13 +216,8 @@ void ioapic_setup() {
     madt_second_pass();
 
     if(ioapic_count > 0) {
-        // map timer 
         ioapic_map_irq(&ioapics[0], 0, 0x20, lapic_get_id());
-        ioapic_unmask_irq(0);
-        
-        // map ps2 keyboard
-        ioapic_map_irq(&ioapics[0], 1, 0x21, lapic_get_id());
-        ioapic_unmask_irq(1);
+        ioapic_mask_irq(0);
     }
 
     printf("IOAPIC INIT OK!\n");
