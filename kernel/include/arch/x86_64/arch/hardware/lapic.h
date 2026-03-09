@@ -15,6 +15,9 @@ typedef struct {
     uint16_t flags;
 } io_apic_iso_t;
 
+
+uintptr_t get_apic_base_address();
+
 void lapic_init_bsp();
 void lapic_init_ap();
 

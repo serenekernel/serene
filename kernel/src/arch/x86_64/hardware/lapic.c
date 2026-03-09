@@ -1,3 +1,5 @@
+#include "common/requests.h"
+
 #include <arch/hardware/lapic.h>
 #include <arch/internal/cpuid.h>
 #include <arch/msr.h>
@@ -71,10 +73,13 @@
 #define LAPIC_SHORTHAND_ALL_EXCL_SELF 0xC0000
 
 static bool x2apic_mode = false;
-static virt_addr_t apic_base_address = 0;
 
 bool __x2apic_supported(void) {
     return __cpuid_is_feature_supported(CPUID_FEATURE_X2APIC);
+}
+
+uintptr_t get_apic_base_address() {
+    return TO_HHDM(__rdmsr(IA32_APIC_BASE_MSR) & 0xFFFFF000);
 }
 
 static void apic_enable_mode_bsp() {
@@ -92,13 +97,9 @@ static void apic_enable_mode_bsp() {
 
     uint8_t cpuid_result = (uint8_t) (__cpuid(0x80000008, 0, CPUID_EAX) & 0xff);
     printf("max phys bits: %u\n", cpuid_result);
-    assert(cpuid_result > 36 && "physical address bits > 36");
+    assert(cpuid_result >= 36 && "physical address bits >= 36");
     assert(cpuid_result + 12 < 64 && "physical address bits + 12 < 64");
-
-    apic_base_address = (virt_addr_t) vmm_alloc(&kernel_allocator, 1);
-    vm_map_page(&kernel_allocator, apic_base_address, (msr & 0xFFFFF000), VM_ACCESS_KERNEL, VM_CACHE_WRITE_THROUGH, VM_READ_WRITE);
-
-    printf("apic base address: 0x%lx\n", apic_base_address);
+    printf("apic base address: 0x%lx\n", get_apic_base_address());
 }
 
 static void apic_enable_mode_ap(void) {
@@ -112,7 +113,7 @@ uint32_t lapic_read(uint32_t reg) {
     if(x2apic_mode) {
         return (uint32_t) __rdmsr(IA32_X2APIC_BASE_MSR + (reg >> 4));
     } else {
-        return mmio_read_u32(apic_base_address + reg);
+        return mmio_read_u32(get_apic_base_address() + reg);
     }
 }
 
@@ -120,7 +121,7 @@ void lapic_write(uint32_t reg, uint32_t value) {
     if(x2apic_mode) {
         __wrmsr(IA32_X2APIC_BASE_MSR + (reg >> 4), value);
     } else {
-        mmio_write_u32(apic_base_address + reg, value);
+        mmio_write_u32(get_apic_base_address() + reg, value);
     }
 }
 
@@ -130,8 +131,8 @@ uint64_t lapic_read64(uint32_t reg) {
     } else {
         // @todo: im sure this doesn't work for ALL registers
         uint64_t val = 0;
-        val |= (uint64_t) mmio_read_u32(apic_base_address + reg);
-        val |= (uint64_t) mmio_read_u32(apic_base_address + (reg + 0x10)) << 32;
+        val |= (uint64_t) mmio_read_u32(get_apic_base_address() + reg);
+        val |= (uint64_t) mmio_read_u32(get_apic_base_address() + (reg + 0x10)) << 32;
         return val;
     }
 }
@@ -141,8 +142,8 @@ void lapic_write64(uint32_t reg, uint64_t value) {
         __wrmsr(IA32_X2APIC_BASE_MSR + (reg >> 4), value);
     } else {
         // @todo: im sure this doesn't work for ALL registers
-        mmio_write_u32(apic_base_address + reg, (value & 0xFFFFFFFF));
-        mmio_write_u32(apic_base_address + (reg + 0x10), (value >> 32));
+        mmio_write_u32(get_apic_base_address() + reg, (value & 0xFFFFFFFF));
+        mmio_write_u32(get_apic_base_address() + (reg + 0x10), (value >> 32));
     }
 }
 
