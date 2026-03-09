@@ -1,3 +1,4 @@
+#include "arch/hardware/lapic.h"
 #include "common/arch.h"
 #include "memory/memobj.h"
 #include "memory/memory.h"
@@ -264,12 +265,12 @@ void vm_map_kernel() {
         struct limine_memmap_entry* current = memmap_request.response->entries[i];
 
         phys_addr_t phys_base = ALIGN_DOWN(current->base, 4096);
-        virt_addr_t virt_base = FROM_HHDM(phys_base);
+        virt_addr_t virt_base = TO_HHDM(phys_base);
         size_t page_count = ALIGN_UP(current->length, 4096) / 4096;
 
         printf("0x%016llx -> 0x%016llx (0x%08llx | %s)", phys_base, virt_base, current->length, limine_memmap_type_to_str(current->type));
         if(current->type == LIMINE_MEMMAP_USABLE || current->type == LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE || current->type == LIMINE_MEMMAP_EXECUTABLE_AND_MODULES || current->type == LIMINE_MEMMAP_FRAMEBUFFER ||
-           current->type == LIMINE_MEMMAP_RESERVED_MAPPED || current->type == LIMINE_MEMMAP_ACPI_RECLAIMABLE)
+           current->type == LIMINE_MEMMAP_RESERVED_MAPPED || current->type == LIMINE_MEMMAP_ACPI_RECLAIMABLE || current->type == LIMINE_MEMMAP_ACPI_NVS)
         {
             printf(" will be mapped\n");
         } else {
@@ -280,8 +281,10 @@ void vm_map_kernel() {
             vm_map_pages_continuous(&kernel_allocator, virt_base, phys_base, page_count, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE);
         } else if(current->type == LIMINE_MEMMAP_FRAMEBUFFER) {
             vm_map_pages_continuous(&kernel_allocator, virt_base, phys_base, page_count, VM_ACCESS_KERNEL, VM_CACHE_WRITE_COMBINE, VM_READ_WRITE);
-        } else if(current->type == LIMINE_MEMMAP_ACPI_RECLAIMABLE || current->type == LIMINE_MEMMAP_RESERVED_MAPPED) {
-            vm_map_pages_continuous(&kernel_allocator, virt_base, phys_base, page_count, VM_ACCESS_KERNEL, VM_CACHE_WRITE_THROUGH, VM_READ_ONLY);
+        } else if(current->type == LIMINE_MEMMAP_ACPI_RECLAIMABLE || current->type == LIMINE_MEMMAP_RESERVED_MAPPED || current->type == LIMINE_MEMMAP_ACPI_NVS) {
+            vm_map_pages_continuous(&kernel_allocator, virt_base, phys_base, page_count, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_ONLY);
         }
     }
+
+    vm_map_page(&kernel_allocator, get_apic_base_address(), FROM_HHDM(get_apic_base_address()), VM_ACCESS_KERNEL, VM_CACHE_DISABLE, VM_READ_WRITE);
 }
