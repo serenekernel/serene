@@ -188,33 +188,9 @@ void ps2_test(interrupt_frame_t*) {
     }
 }
 
+static uint32_t arch_ap_wait_flag = {};
 static spinlock_t arch_ap_init_lock = {};
 static uint32_t arch_ap_count = 0;
-
-void thread_a() {
-    int i = 0;
-    while(true) {
-        printf("a: %d on %d\n", i++, lapic_get_id());
-    }
-}
-void thread_b() {
-    int i = 0;
-    while(true) {
-        printf("b: %d on %d\n", i++, lapic_get_id());
-    }
-}
-void thread_c() {
-    int i = 0;
-    while(true) {
-        printf("c: %d on %d\n", i++, lapic_get_id());
-    }
-}
-void thread_d() {
-    int i = 0;
-    while(true) {
-        printf("d: %d on %d\n", i++, lapic_get_id());
-    }
-}
 
 void arch_init_bsp() {
     setup_memory();
@@ -228,13 +204,15 @@ void arch_init_bsp() {
         printf("CPU %zu: lapic_id: %u processor_id %u\n", i, mp_request.response->cpus[i]->lapic_id, mp_request.response->cpus[i]->processor_id);
     }
 
+    __atomic_store_n(&arch_ap_wait_flag, 1, __ATOMIC_RELEASE);
+    atomic_store(&arch_ap_count, 0);
     for(size_t i = 0; i < mp_request.response->cpu_count; i++) {
         if(mp_request.response->cpus[i]->lapic_id == lapic_get_id()) {
             continue;
         }
 
         printf("Starting AP with lapic id %u\n", mp_request.response->cpus[i]->lapic_id);
-        mp_request.response->cpus[i]->goto_address = &arch_init_ap;
+        atomic_store(&mp_request.response->cpus[i]->goto_address, &arch_init_ap);
     }
 
     printf("Waiting for APs to boot...\n");
@@ -251,14 +229,6 @@ void arch_init_bsp() {
     handle_setup();
     memobj_init();
     userspace_init();
-    // thread_t* test1 = sched_thread_kernel_init((virt_addr_t) thread_a);
-    // thread_t* test2 = sched_thread_kernel_init((virt_addr_t) thread_b);
-    // thread_t* test3 = sched_thread_kernel_init((virt_addr_t) thread_c);
-    // thread_t* test4 = sched_thread_kernel_init((virt_addr_t) thread_d);
-    // sched_add_thread(test1);
-    // sched_add_thread(test2);
-    // sched_add_thread(test3);
-    // sched_add_thread(test4);
     printf("bsp init yielding\n");
 
     for(size_t i = 0; i < module_request.response->module_count; i++) {
@@ -276,7 +246,11 @@ void arch_init_bsp() {
 }
 
 void arch_init_ap(struct limine_mp_info* info) {
-    (void) info;
+    while(__atomic_load_n(&arch_ap_wait_flag, __ATOMIC_RELAXED) == 0) {
+        arch_pause();
+    }
+
+    printf("ap startup? %d\n", info->lapic_id);
     vm_paging_ap_init(&kernel_allocator);
     printf("ap paging pray\n");
     vm_address_space_switch(&kernel_allocator);
@@ -284,8 +258,19 @@ void arch_init_ap(struct limine_mp_info* info) {
 
     arch_memory_barrier();
     uint64_t cr4 = __read_cr4();
-    cr4 |= (1 << 20); // Enable SMEP
-    cr4 |= (1 << 21); // Enable SMAP
+
+    if(__cpuid_is_feature_supported(CPUID_FEATURE_UMIP)) {
+        cr4 |= (1 << 11); // cr4.UMIP
+    }
+
+    if(__cpuid_is_feature_supported(CPUID_FEATURE_SMEP)) {
+        cr4 |= (1 << 20); // cr4.SMEP
+    }
+
+    if(arch_uap_supported()) {
+        cr4 |= (1 << 21); // cr4.SMAP
+    }
+
     __write_cr4(cr4);
     arch_memory_barrier();
     uint64_t cr0 = __read_cr0();
@@ -308,7 +293,7 @@ void arch_init_ap(struct limine_mp_info* info) {
     sched_init_ap();
 
     atomic_fetch_add(&arch_ap_count, 1);
-
+    printf("AP with lapic id %u initialized\n", lapic_get_id());
     sched_start();
     __builtin_unreachable();
 }
