@@ -7,7 +7,10 @@
 typedef volatile uint32_t spinlock_t;
 
 static inline void spinlock_lock(spinlock_t* lock) {
-    while(__atomic_exchange_n(lock, 1, __ATOMIC_ACQUIRE)) {
+    while(__atomic_load_n(lock, __ATOMIC_RELAXED) == 1) {
+        if(__atomic_exchange_n(lock, 1, __ATOMIC_ACQUIRE) == 0) {
+            break;
+        }
         arch_pause();
     }
 }
