@@ -29,7 +29,15 @@ void sink_debug(char* c) {
 struct flanterm_context* ft_ctx = NULL;
 
 void sink_flanterm(char* c) {
-    flanterm_write(ft_ctx, c, strlen(c));
+    while(*c != '\0') {
+        if(*c == '\n') {
+            flanterm_write(ft_ctx, "\r\n", 2);
+            c++;
+            continue;
+        }
+        flanterm_write(ft_ctx, c, 1);
+        c++;
+    }
 }
 
 void term_init(void) {
