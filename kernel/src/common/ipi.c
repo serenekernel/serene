@@ -2,6 +2,7 @@
 #include <common/arch.h>
 #include <common/ipi.h>
 #include <common/spinlock.h>
+#include <common/vector_alloc.h>
 #include <memory/vmm.h>
 #include <string.h>
 
@@ -16,12 +17,23 @@ spinlock_t g_ipi_lock;
 ipi_meta_t* g_ipi_table;
 size_t g_cpu_count;
 
+static uint8_t g_ipi_vector;
+
 void arch_ipi_send_raw(uint32_t cpu_id);
 void arch_ipi_broadcast_raw();
+
+uint8_t ipi_get_vector() {
+    return g_ipi_vector;
+}
 
 void ipi_init_bsp(size_t highest_lapic_id) {
     assert(arch_is_bsp() && "IPI BSP init called on AP");
     g_ipi_lock = 0;
+
+    int vector = alloc_interrupt_vector();
+    assert(vector != -1 && "Failed to allocate interrupt vector for IPI");
+    g_ipi_vector = (uint8_t) vector;
+    printf("Allocated IPI interrupt vector: 0x%02x\n", g_ipi_vector);
 
     size_t total_size = ALIGN_UP(sizeof(ipi_meta_t) * (highest_lapic_id + 1), PAGE_SIZE_DEFAULT) / PAGE_SIZE_DEFAULT;
     printf("Allocating IPI table for %zu CPUs (%zu pages)\n", (highest_lapic_id + 1), total_size);

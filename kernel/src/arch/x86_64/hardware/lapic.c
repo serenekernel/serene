@@ -1,3 +1,4 @@
+#include "common/ipi.h"
 #include "common/requests.h"
 
 #include <arch/hardware/lapic.h>
@@ -223,7 +224,7 @@ void lapic_send_raw_ipi(uint32_t apic_id) {
     icr |= LAPIC_LEVEL_DEASSERT;
     icr |= LAPIC_DESTMODE_PHYSICAL;
     icr |= LAPIC_DELMODE_FIXED;
-    icr |= 0xf0; // vector
+    icr |= ipi_get_vector(); // vector
 
 
     if(x2apic_mode) {
@@ -245,7 +246,7 @@ void lapic_broadcast_raw_ipi() {
     icr |= LAPIC_LEVEL_DEASSERT;
     icr |= LAPIC_DESTMODE_PHYSICAL;
     icr |= LAPIC_DELMODE_FIXED;
-    icr |= 0xf0; // vector
+    icr |= ipi_get_vector(); // vector
 
     if(x2apic_mode) {
         lapic_write64(LAPIC_X2APIC_ICR, icr);

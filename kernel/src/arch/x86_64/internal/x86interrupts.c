@@ -57,7 +57,7 @@ bool x86_64_fred_enabled() {
 void x86_64_dispatch_interrupt(interrupt_frame_t* frame) {
     arch_restore_uap(true);
 
-    if(frame->vector != 0x20 && frame->vector != 0xf0) {
+    if(frame->vector != 0x20 && frame->vector != ipi_get_vector()) {
         printf("Interrupt received: 0x%02X on lapic %u\n", frame->vector, lapic_get_id());
     }
 
@@ -74,7 +74,7 @@ void x86_64_dispatch_interrupt(interrupt_frame_t* frame) {
         arch_panic_int(frame);
     }
 
-    if(frame->vector == 0xf0) {
+    if(frame->vector == ipi_get_vector()) {
         ipi_handle();
         lapic_eoi();
         return;
