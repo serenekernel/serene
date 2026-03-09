@@ -6,6 +6,7 @@
 #include <arch/msr.h>
 #include <assert.h>
 #include <common/arch.h>
+#include <common/config.h>
 #include <common/cpu_local.h>
 #include <common/handle.h>
 #include <common/interrupts.h>
@@ -45,10 +46,14 @@ void reaper_thread() {
                     thread_t* to_reap = current;
 
                     if(to_reap->thread_common.process != nullptr) {
+#if VERBOSE_LOGGING == 1
                         printf("[REAPER] Found terminated thread TID %u PID %u (reaping=%p)\n", to_reap->thread_common.tid, to_reap->thread_common.process->pid, (void*) to_reap);
+#endif
                         to_reap->thread_common.process->thread_count--;
                     } else {
+#if VERBOSE_LOGGING == 1
                         printf("[REAPER] Found terminated thread TID %u PID <none> (reaping=%p)\n", to_reap->thread_common.tid, (void*) to_reap);
+#endif
                     }
                     if(prev != nullptr) {
                         prev->sched_next = current->sched_next;
@@ -58,9 +63,10 @@ void reaper_thread() {
                         current = CPU_LOCAL_READ(cpu_scheduler)->thread_head;
                     }
 
+#if VERBOSE_LOGGING == 1
                     printf("to_reap->kernel_rsp: 0x%llx\n", to_reap->kernel_rsp);
                     printf("to_reap: 0x%llx\n", to_reap);
-
+#endif
                     // Save pointers before releasing lock
                     virt_addr_t kernel_rsp = to_reap->kernel_rsp;
                     virt_addr_t thread_ptr = (virt_addr_t) to_reap;
@@ -107,15 +113,16 @@ void reaper_thread() {
                     // Save pointers before releasing lock
                     vm_allocator_t* proc_addr_space = to_reap->address_space;
                     virt_addr_t proc_ptr = (virt_addr_t) to_reap;
-                    uint32_t pid = to_reap->pid;
 
                     // Release lock before calling vmm_destory_allocator (which calls vmm_free and triggers IPIs)
                     spinlock_critical_unlock(&g_sched_lock, __spin_flags);
 
                     vmm_destory_allocator(proc_addr_space);
                     vmm_free(&kernel_allocator, proc_ptr);
+#if VERBOSE_LOGGING == 1
+                    uint32_t pid = to_reap->pid;
                     printf("Reaped process PID %u\n", pid);
-
+#endif
                     // Re-acquire lock and restart from head
                     __spin_flags = spinlock_critical_lock(&g_sched_lock);
                     break; // restart from head
@@ -163,6 +170,9 @@ void sched_init_bsp() {
 
     sched_arch_init_bsp();
     sched_init_ap();
+
+    g_reaper_thread = sched_thread_kernel_init((virt_addr_t) reaper_thread);
+    CPU_LOCAL_READ(cpu_scheduler)->thread_head->sched_next = (struct thread*) g_reaper_thread;
 }
 
 void sched_init_ap() {
@@ -171,11 +181,8 @@ void sched_init_ap() {
     sched->idle_thread = sched_thread_kernel_init((virt_addr_t) idle_thread);
     sched->idle_thread->thread_common.tid = 1;
 
-    g_reaper_thread = sched_thread_kernel_init((virt_addr_t) reaper_thread);
-
     sched->thread_head = sched->idle_thread;
-    sched->thread_head->sched_next = (struct thread*) g_reaper_thread;
-    printf("Scheduler initialized with idle thread TID %u and reaper thread TID %u\n", sched->idle_thread->thread_common.tid, g_reaper_thread->thread_common.tid);
+    printf("Scheduler initialized with idle thread TID %u\n", sched->idle_thread->thread_common.tid);
     CPU_LOCAL_WRITE(cpu_scheduler, sched);
     CPU_LOCAL_WRITE(current_thread, sched->idle_thread);
 }

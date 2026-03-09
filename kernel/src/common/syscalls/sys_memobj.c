@@ -19,7 +19,6 @@ syscall_ret_t syscall_sys_memobj_create(uint64_t size, uint64_t perms) {
 
     handle_t handle = handle_create(HANDLE_TYPE_MEMOBJ, current_thread->thread_common.process->pid, HANDLE_CAPS_MEMOBJ_MAP | HANDLE_CAPS_MEMOBJ_DESTROY, (void*) memobj);
 
-    printf("Created memobj id=%llu size=%zu perms=0x%llx, handle=0x%llx\n", memobj->id, memobj->size, perms, handle);
     return SYSCALL_RET_VALUE(handle);
 }
 

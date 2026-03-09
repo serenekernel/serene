@@ -1,3 +1,4 @@
+#include <common/config.h>
 #include <common/requests.h>
 #include <common/spinlock.h>
 #include <memory/memobj.h>
@@ -76,8 +77,9 @@ memobj_t* memobj_create(size_t size, memobj_perms_t perms) {
 
     spinlock_critical_unlock(&memobj_lock, __spinflags);
 
+#if VERBOSE_LOGGING == 1
     printf("Created memobj id=%llu size=%zu pages=%zu perms=0x%x\n", memobj->id, memobj->size, memobj->page_count, memobj->max_perms);
-
+#endif
     return memobj;
 }
 
@@ -205,8 +207,9 @@ virt_addr_t memobj_map(vm_allocator_t* allocator, memobj_t* memobj, virt_addr_t 
 
     memobj_ref(memobj);
 
+#if VERBOSE_LOGGING == 1
     printf("Mapped memobj id=%llu to vaddr=0x%llx size=%zu perms=0x%x\n", memobj->id, vaddr, memobj->size, perms);
-
+#endif
     return vaddr;
 }
 

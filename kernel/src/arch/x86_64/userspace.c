@@ -3,6 +3,7 @@
 #include <arch/msr.h>
 #include <assert.h>
 #include <common/arch.h>
+#include <common/config.h>
 #include <common/cpu_local.h>
 #include <common/endpoint.h>
 #include <common/handle.h>
@@ -104,8 +105,12 @@ syscall_ret_t syscall_sys_invalid(uint64_t arg1, uint64_t arg2, uint64_t arg3, u
 // @note: syscall_nr is the LAST parameter so it's just *rsp
 syscall_ret_t dispatch_syscall(uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4, uint64_t arg5, uint64_t arg6, syscall_nr_t syscall_nr) {
     thread_t* thread = CPU_LOCAL_READ(current_thread);
+#if SYSTRACE_ENABLED == 0
+    (void) thread;
+#endif
 
     if(syscall_nr >= MAX_SYSCALL_NUMBER) {
+#if SYSTRACE_ENABLED == 1
         printf(
             "[systrace] %d:%d - (0x%llx) %s(0x%llx, 0x%llx, 0x%llx, 0x%llx, 0x%llx, 0x%llx) = %s (0x%llx)\n",
             thread->thread_common.process->pid,
@@ -121,12 +126,13 @@ syscall_ret_t dispatch_syscall(uint64_t arg1, uint64_t arg2, uint64_t arg3, uint
             convert_syscall_ret(SYSCALL_RET_ERROR(SYSCALL_ERR_INVALID_SYSCALL)),
             SYSCALL_ERR_INVALID_SYSCALL
         );
+#endif
         return SYSCALL_RET_ERROR(SYSCALL_ERR_INVALID_SYSCALL);
     }
 
     syscall_entry_t entry = syscall_table[syscall_nr];
     assert(entry.num_params <= 6 && "syscall entry has too many parameters");
-
+#if SYSTRACE_ENABLED == 1
     char systrace_buf[1024];
     int index = snprintf(systrace_buf, 1024, "[systrace] %d:%d - (0x%llx) %s(", thread->thread_common.process->pid, thread->thread_common.tid, syscall_nr, convert_syscall_number(syscall_nr));
     switch(entry.num_params) {
@@ -141,7 +147,7 @@ syscall_ret_t dispatch_syscall(uint64_t arg1, uint64_t arg2, uint64_t arg3, uint
     }
 
     printf("%s\n", systrace_buf);
-
+#endif
     syscall_ret_t ret_value;
 
     switch(entry.num_params) {
@@ -155,9 +161,10 @@ syscall_ret_t dispatch_syscall(uint64_t arg1, uint64_t arg2, uint64_t arg3, uint
         default: __builtin_unreachable();
     }
 
+#if SYSTRACE_ENABLED == 1
     snprintf(systrace_buf + index, 1024 - index, " = %s (0x%llx)", convert_syscall_ret(ret_value), ret_value);
     printf("%s\n", systrace_buf);
-
+#endif
     return ret_value;
 }
 
