@@ -29,15 +29,6 @@ syscall_ret_t syscall_sys_cap_port_grant(uint64_t start_port, uint64_t num_ports
     return SYSCALL_RET_VALUE(0);
 }
 
-syscall_ret_t syscall_sys_cap_ipc_discovery() {
-    // @note: this sucks
-    thread_t* thread = CPU_LOCAL_READ(current_thread);
-    handle_t target = (handle_t) 1; // hard coding :3
-    handle_t our_handle = handle_dup(target);
-    handle_set_owner(our_handle, thread->thread_common.process->pid);
-    return SYSCALL_RET_VALUE(our_handle);
-}
-
 syscall_ret_t syscall_sys_cap_initramfs() {
     static void* initramfs = nullptr;
     static size_t initramfs_size = 0;

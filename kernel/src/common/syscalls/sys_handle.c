@@ -21,13 +21,21 @@ syscall_ret_t syscall_sys_wait_for(uint64_t handle_value) {
     return SYSCALL_RET_VALUE(0);
 }
 
-syscall_ret_t syscall_sys_handle_dup(uint64_t handle_value) {
+syscall_ret_t syscall_sys_handle_dup(uint64_t handle_value, uint64_t new_owner_pid) {
     handle_t handle = *(handle_t*) &handle_value;
     SYSCALL_ASSERT_HANDLE(handle);
+
     thread_t* thread = CPU_LOCAL_READ(current_thread);
     handle_t new_handle = handle_dup(handle);
-    handle_set_owner(new_handle, thread->thread_common.process->pid);
-    printf("Duplicated handle 0x%llx to new handle 0x%llx for process %d\n", handle, new_handle, thread->thread_common.process->pid);
+
+    uint64_t owner_pid = new_owner_pid;
+    if(owner_pid == 0) {
+        owner_pid = thread->thread_common.process->pid;
+    }
+
+    handle_set_owner(new_handle, (uint32_t) owner_pid);
+
+    printf("Duplicated handle 0x%llx to new handle 0x%llx for process %d -> %d\n", handle, new_handle, thread->thread_common.process->pid, owner_pid);
     return SYSCALL_RET_VALUE(new_handle);
 }
 

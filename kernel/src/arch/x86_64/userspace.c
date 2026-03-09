@@ -55,7 +55,6 @@ const char* convert_syscall_number(syscall_nr_t nr) {
         case SYS_MAP:                   return "SYS_MAP";
         case SYS_COPY_TO:               return "SYS_COPY_TO";
         case SYS_CAP_PORT_GRANT:        return "SYS_CAP_PORT_GRANT";
-        case SYS_CAP_IPC_DISCOVERY:     return "SYS_CAP_IPC_DISCOVERY";
         case SYS_CAP_INITRAMFS:         return "SYS_CAP_INITRAMFS";
         case SYS_WAIT_FOR:              return "SYS_WAIT_FOR";
         case SYS_ENDPOINT_CREATE:       return "SYS_ENDPOINT_CREATE";
@@ -67,6 +66,7 @@ const char* convert_syscall_number(syscall_nr_t nr) {
         case SYS_HANDLE_GET_OWNER:      return "SYS_HANDLE_GET_OWNER";
         case SYS_HANDLE_SET_OWNER:      return "SYS_HANDLE_SET_OWNER";
         case SYS_MEM_ALLOC:             return "SYS_MEM_ALLOC";
+        case SYS_ENDPOINT_GET_OWNER:    return "SYS_ENDPOINT_GET_OWNER";
         case SYS_MEM_FREE:              return "SYS_MEM_FREE";
         case SYS_SET_FSBASE:            return "SYS_SET_FSBASE";
         default:                        return "UNKNOWN_SYSCALL";
@@ -193,7 +193,6 @@ void userspace_init() {
 
     SYSCALL_DISPATCHER(SYS_CAP_PORT_GRANT, syscall_sys_cap_port_grant, 2);
 
-    SYSCALL_DISPATCHER(SYS_CAP_IPC_DISCOVERY, syscall_sys_cap_ipc_discovery, 0);
     SYSCALL_DISPATCHER(SYS_CAP_INITRAMFS, syscall_sys_cap_initramfs, 0);
 
     SYSCALL_DISPATCHER(SYS_WAIT_FOR, syscall_sys_wait_for, 1);
@@ -204,7 +203,7 @@ void userspace_init() {
     SYSCALL_DISPATCHER(SYS_ENDPOINT_FREE_MESSAGE, syscall_sys_endpoint_free_message, 1);
     SYSCALL_DISPATCHER(SYS_ENDPOINT_GET_OWNER, syscall_sys_endpoint_get_owner, 1);
 
-    SYSCALL_DISPATCHER(SYS_HANDLE_DUP, syscall_sys_handle_dup, 1);
+    SYSCALL_DISPATCHER(SYS_HANDLE_DUP, syscall_sys_handle_dup, 2);
     SYSCALL_DISPATCHER(SYS_HANDLE_CLOSE, syscall_sys_handle_close, 1);
     SYSCALL_DISPATCHER(SYS_HANDLE_GET_OWNER, syscall_sys_handle_get_owner, 1);
     SYSCALL_DISPATCHER(SYS_HANDLE_SET_OWNER, syscall_sys_handle_set_owner, 2);
