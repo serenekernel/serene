@@ -401,7 +401,14 @@ bool vm_handle_page_fault(vm_fault_reason_t reason, virt_addr_t fault_address) {
     }
 
     thread_t* current_thread = CPU_LOCAL_READ(current_thread);
-    vm_node_t* node = (vm_node_t*) rb_find_within(&current_thread->thread_common.address_space->vm_tree, fault_address);
+    vm_allocator_t* address_space;
+    if(current_thread != NULL) {
+        address_space = current_thread->thread_common.address_space;
+    } else {
+        address_space = &kernel_allocator;
+    }
+
+    vm_node_t* node = (vm_node_t*) rb_find_within(&address_space->vm_tree, fault_address);
     if(node == NULL) {
         return false;
     }
@@ -410,7 +417,7 @@ bool vm_handle_page_fault(vm_fault_reason_t reason, virt_addr_t fault_address) {
 
     if(node->options_type == VM_OPTIONS_DEMAND) {
         phys_addr_t phys = pmm_alloc_page();
-        vm_map_page(current_thread->thread_common.address_space, fault_address, phys, node->options.demand.access, node->options.demand.cache, node->options.demand.flags);
+        vm_map_page(address_space, fault_address, phys, node->options.demand.access, node->options.demand.cache, node->options.demand.flags);
         if(node->options.demand.zero_fill) {
             memset((void*) fault_address, 0, PAGE_SIZE_DEFAULT);
         }
