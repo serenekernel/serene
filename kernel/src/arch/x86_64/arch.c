@@ -181,13 +181,6 @@ void setup_arch() {
     printf("CPU Name: %s\n", __cpuid_get_name_string());
 }
 
-void ps2_test(interrupt_frame_t*) {
-    if((port_read_u8(0x64) & 1) == 1) {
-        uint8_t scancode = port_read_u8(0x60);
-        printf("Scancode: 0x%02x\n", scancode);
-    }
-}
-
 static uint32_t arch_ap_wait_flag = {};
 static spinlock_t arch_ap_init_lock = {};
 static uint32_t arch_ap_count = 0;
@@ -195,10 +188,6 @@ static uint32_t arch_ap_count = 0;
 void arch_init_bsp() {
     setup_memory();
     setup_arch();
-
-    register_interrupt_handler(0x21, ps2_test);
-    printf("...\n");
-    while(((port_read_u8(0x64) >> 0) & 1) == 1) port_read_u8(0x60);
 
     for(size_t i = 0; i < mp_request.response->cpu_count; i++) {
         printf("CPU %zu: lapic_id: %u processor_id %u\n", i, mp_request.response->cpus[i]->lapic_id, mp_request.response->cpus[i]->processor_id);
