@@ -1,8 +1,10 @@
 #include "memory/vmm.h"
-#include <common/cpu_local.h>
-#include <arch/msr.h>
 
-void init_cpu_local() {
-    kernel_cpu_local_t* kernel_cpu_local = (kernel_cpu_local_t*) vmm_alloc_object(&kernel_allocator, sizeof(kernel_cpu_local_t));
-    __wrmsr(IA32_GS_BASE_MSR, (uint64_t) kernel_cpu_local);
+#include <arch/msr.h>
+#include <common/cpu_local.h>
+
+static volatile kernel_cpu_local_t bsp_cpu_local = { 0 };
+
+void init_cpu_local_bsp() {
+    __wrmsr(IA32_GS_BASE_MSR, (uint64_t) &bsp_cpu_local);
 }

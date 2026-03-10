@@ -32,7 +32,6 @@ local c_flags = {
     "-ffreestanding",
     "-nostdinc",
 
-    "-fno-stack-protector",
     "-fno-stack-check",
     "-fno-strict-aliasing",
     "-fstack-protector-all",

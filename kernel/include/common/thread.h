@@ -25,6 +25,7 @@ typedef struct {
     vm_allocator_t* address_space;
     thread_status_t status;
     bool happy_to_die;
+    bool in_interrupt_handler;
 
     thread_block_reason_t block_reason;
     union {

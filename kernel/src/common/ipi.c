@@ -8,12 +8,16 @@
 
 typedef struct {
     bool cpu_exists;
-    spinlock_t ipi_lock;
+    // This lock is acquired on the sender CPU and released on the receiver CPU,
+    // so it must be a raw atomic flag — using spinlock_t here would call
+    // sched_preempt_disable/enable on different CPUs and corrupt their per-CPU
+    // preempt counters.
+    volatile uint32_t ipi_lock;
     volatile bool ipi_pending;
     ipi_t ipi;
 } ipi_meta_t;
 
-spinlock_t g_ipi_lock;
+spinlock_t g_ipi_lock = SPINLOCK_INIT;
 ipi_meta_t* g_ipi_table;
 size_t g_cpu_count;
 
@@ -26,14 +30,15 @@ uint8_t ipi_get_vector() {
     return g_ipi_vector;
 }
 
-void ipi_init_bsp(size_t highest_lapic_id) {
-    assert(arch_is_bsp() && "IPI BSP init called on AP");
-    g_ipi_lock = 0;
-
+void ipi_allocate_vector() {
     int vector = alloc_interrupt_vector();
     assert(vector != -1 && "Failed to allocate interrupt vector for IPI");
     g_ipi_vector = (uint8_t) vector;
     printf("Allocated IPI interrupt vector: 0x%02x\n", g_ipi_vector);
+}
+
+void ipi_init_bsp(size_t highest_lapic_id) {
+    assert(arch_is_bsp() && "IPI BSP init called on AP");
 
     size_t total_size = ALIGN_UP(sizeof(ipi_meta_t) * (highest_lapic_id + 1), PAGE_SIZE_DEFAULT) / PAGE_SIZE_DEFAULT;
     printf("Allocating IPI table for %zu CPUs (%zu pages)\n", (highest_lapic_id + 1), total_size);
@@ -55,15 +60,15 @@ void ipi_set(uint32_t cpu_id, ipi_t* ipi) {
     assert(g_ipi_table != nullptr && "IPI table not initialized before setting IPI");
     assert(g_ipi_table[cpu_id].cpu_exists == true && "Setting IPI to non-existent CPU");
     assert(arch_get_core_id() != cpu_id && "Setting IPI to self CPU");
-    spinlock_lock(&g_ipi_table[cpu_id].ipi_lock);
+    while(__atomic_test_and_set(&g_ipi_table[cpu_id].ipi_lock, __ATOMIC_ACQUIRE)) {
+        while(__atomic_load_n(&g_ipi_table[cpu_id].ipi_lock, __ATOMIC_RELAXED)) { arch_pause(); }
+    }
     memcpy(&g_ipi_table[cpu_id].ipi, ipi, sizeof(ipi_t));
     g_ipi_table[cpu_id].ipi_pending = true;
 }
 
 void ipi_send_async(uint32_t cpu_id, ipi_t* ipi) {
-    if(g_ipi_table == nullptr) {
-        return;
-    }
+    if(g_ipi_table == nullptr) { return; }
     spinlock_lock(&g_ipi_lock);
     ipi_set(cpu_id, ipi);
     spinlock_unlock(&g_ipi_lock);
@@ -73,17 +78,13 @@ void ipi_send_async(uint32_t cpu_id, ipi_t* ipi) {
 
 void ipi_broadcast_raw(ipi_t* ipi) {
     for(size_t i = 0; i < g_cpu_count; i++) {
-        if(i == arch_get_core_id() || g_ipi_table[i].cpu_exists == false) {
-            continue;
-        }
+        if(i == arch_get_core_id() || g_ipi_table[i].cpu_exists == false) { continue; }
         ipi_set(i, ipi);
     }
 }
 
 void ipi_broadcast_async(ipi_t* ipi) {
-    if(g_ipi_table == nullptr) {
-        return;
-    }
+    if(g_ipi_table == nullptr) { return; }
 
     spinlock_lock(&g_ipi_lock);
     ipi_broadcast_raw(ipi);
@@ -108,7 +109,7 @@ void ipi_handle() {
     }
 
     g_ipi_table[arch_get_core_id()].ipi_pending = false;
-    spinlock_unlock(&g_ipi_table[arch_get_core_id()].ipi_lock);
+    __atomic_clear(&g_ipi_table[arch_get_core_id()].ipi_lock, __ATOMIC_RELEASE);
 }
 
 void ipi_ack(uint32_t cpu_id) {

@@ -26,3 +26,6 @@ void sched_start_thread(thread_t* thread);
 void sched_add_thread(thread_t* thread);
 void sched_remove_thread(thread_t* thread);
 thread_t* sched_get_current_thread();
+
+void sched_preempt_enable();
+void sched_preempt_disable();

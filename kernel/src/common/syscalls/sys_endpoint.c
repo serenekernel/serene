@@ -1,5 +1,3 @@
-#include "memory/vmm.h"
-
 #include <arch/cpu_local.h>
 #include <common/arch.h>
 #include <common/cpu_local.h>
@@ -10,6 +8,8 @@
 #include <common/sched.h>
 #include <common/userspace.h>
 #include <memory/memobj.h>
+#include <memory/vmm.h>
+#include <stdio.h>
 #include <string.h>
 
 syscall_ret_t syscall_sys_endpoint_create() {

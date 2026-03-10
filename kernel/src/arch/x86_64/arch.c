@@ -1,4 +1,5 @@
 #include "arch/internal/cpuid.h"
+#include "common/dw.h"
 
 #include <arch/hardware/fpu.h>
 #include <arch/hardware/lapic.h>
@@ -158,7 +159,6 @@ void setup_memory() {
 }
 
 void setup_arch() {
-    init_cpu_local();
     setup_gdt();
     printf("GDT INIT OK!\n");
 
@@ -181,38 +181,37 @@ void setup_arch() {
     printf("CPU Name: %s\n", __cpuid_get_name_string());
 }
 
-static uint32_t arch_ap_wait_flag = {};
-static spinlock_t arch_ap_init_lock = {};
-static uint32_t arch_ap_count = 0;
+static uint32_t arch_ap_finished = 0;
 
 void arch_init_bsp() {
+    init_cpu_local_bsp();
+    dw_disable();
+    sched_preempt_disable();
+
     setup_memory();
     setup_arch();
 
+    printf("Hello, %s!\n", arch_get_name());
     for(size_t i = 0; i < mp_request.response->cpu_count; i++) {
         printf("CPU %zu: lapic_id: %u processor_id %u\n", i, mp_request.response->cpus[i]->lapic_id, mp_request.response->cpus[i]->processor_id);
     }
 
-    __atomic_store_n(&arch_ap_wait_flag, 1, __ATOMIC_RELEASE);
-    atomic_store(&arch_ap_count, 0);
+    __atomic_store_n(&arch_ap_finished, 0, __ATOMIC_RELAXED);
+    enable_interrupts();
     for(size_t i = 0; i < mp_request.response->cpu_count; i++) {
         if(mp_request.response->cpus[i]->lapic_id == lapic_get_id()) {
             continue;
         }
 
         printf("Starting AP with lapic id %u\n", mp_request.response->cpus[i]->lapic_id);
+        kernel_cpu_local_t* ap_cpu_local = (kernel_cpu_local_t*) vmm_alloc_object(&kernel_allocator, sizeof(kernel_cpu_local_t));
+        assert(ap_cpu_local != NULL && "Failed to allocate cpu local for ap");
+        mp_request.response->cpus[i]->extra_argument = (uint64_t) ap_cpu_local;
         atomic_store(&mp_request.response->cpus[i]->goto_address, &arch_init_ap);
-    }
-
-    printf("Waiting for APs to boot...\n");
-    enable_interrupts();
-    while(true) {
-        if(atomic_load(&arch_ap_count) + 1 >= mp_request.response->cpu_count) {
-            break;
+        while(__atomic_load_n(&arch_ap_finished, __ATOMIC_RELAXED) == 0) {
+            arch_pause();
         }
-        arch_pause();
     }
-    disable_interrupts();
 
     sched_init_bsp();
     handle_setup();
@@ -227,7 +226,6 @@ void arch_init_bsp() {
         }
     }
 
-    enable_interrupts();
 
     // Jump to the idle thread - this never returns
     sched_start();
@@ -235,15 +233,14 @@ void arch_init_bsp() {
 }
 
 void arch_init_ap(struct limine_mp_info* info) {
-    while(__atomic_load_n(&arch_ap_wait_flag, __ATOMIC_RELAXED) == 0) {
-        arch_pause();
-    }
-
-    printf("ap startup? %d\n", info->lapic_id);
     vm_paging_ap_init(&kernel_allocator);
-    printf("ap paging pray\n");
     vm_address_space_switch(&kernel_allocator);
-    printf("ap didn't kill itself\n");
+
+    __wrmsr(IA32_GS_BASE_MSR, (uint64_t) info->extra_argument);
+    dw_disable();
+    sched_preempt_disable();
+
+    printf("AP with lapic id %u woke up\n", lapic_get_id());
 
     arch_memory_barrier();
     uint64_t cr4 = __read_cr4();
@@ -268,11 +265,8 @@ void arch_init_ap(struct limine_mp_info* info) {
     __set_uap(false);
     arch_memory_barrier();
 
-    spinlock_lock(&arch_ap_init_lock);
-    init_cpu_local();
     setup_gdt();
     ipi_init_ap();
-    spinlock_unlock(&arch_ap_init_lock);
 
     setup_interrupts_ap();
     lapic_init_ap();
@@ -281,7 +275,7 @@ void arch_init_ap(struct limine_mp_info* info) {
     enable_interrupts();
     sched_init_ap();
 
-    atomic_fetch_add(&arch_ap_count, 1);
+    __atomic_store_n(&arch_ap_finished, 1, __ATOMIC_RELAXED);
     printf("AP with lapic id %u initialized\n", lapic_get_id());
     sched_start();
     __builtin_unreachable();

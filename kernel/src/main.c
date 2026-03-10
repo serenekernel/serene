@@ -1,9 +1,12 @@
+#include "common/dw.h"
+#include "common/sched.h"
+
 #include <common/arch.h>
-#include <memory/memory.h>
 #include <common/requests.h>
 #include <flanterm.h>
 #include <flanterm_backends/fb.h>
 #include <limine.h>
+#include <memory/memory.h>
 #include <memory/pmm.h>
 #include <memory/vmm.h>
 #include <stdio.h>
@@ -11,8 +14,6 @@
 void kmain(void) {
     verify_requests();
     term_init();
-
-    printf("Hello, %s!\n", arch_get_name());
 
     arch_init_bsp();
 

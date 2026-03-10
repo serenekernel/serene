@@ -19,7 +19,7 @@ typedef struct {
 } ipi_t;
 
 uint8_t ipi_get_vector();
-
+void ipi_allocate_vector();
 void ipi_init_bsp(size_t cpu_count);
 void ipi_init_ap();
 

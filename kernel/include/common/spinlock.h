@@ -1,39 +1,26 @@
 #pragma once
-#include "common/interrupts.h"
-
 #include <common/arch.h>
+#include <common/dw.h>
+#include <common/interrupts.h>
 #include <stdint.h>
 
-typedef volatile uint32_t spinlock_t;
+#define SPINLOCK_INIT { 0 }
 
-static inline void spinlock_lock(spinlock_t* lock) {
-    while(__atomic_exchange_n(lock, 1, __ATOMIC_ACQUIRE)) {
-        while(__atomic_load_n(lock, __ATOMIC_RELAXED)) {
-            __builtin_ia32_pause();
-        }
-    }
-}
+typedef volatile struct {
+    volatile uint32_t __lock;
+} spinlock_t;
 
-[[nodiscard]] static inline bool spinlock_try_lock(spinlock_t* lock) {
-    return !__atomic_exchange_n(lock, 1, __ATOMIC_ACQUIRE);
-}
+typedef volatile struct {
+    volatile uint32_t __lock;
+} nodw_spinlock_t;
 
-static inline void spinlock_unlock(spinlock_t* lock) {
-    __atomic_store_n(lock, 0, __ATOMIC_RELEASE);
-}
+typedef volatile struct {
+    volatile uint32_t __lock;
+} noint_spinlock_t;
 
-[[nodiscard]] static inline uint64_t spinlock_critical_lock(spinlock_t* lock) {
-    uint64_t flags = interrupts_enabled();
-    disable_interrupts();
-    spinlock_lock(lock);
-    return flags;
-}
-
-static inline void spinlock_critical_unlock(spinlock_t* lock, uint64_t flags) {
-    spinlock_unlock(lock);
-    if(flags) {
-        enable_interrupts();
-    } else {
-        disable_interrupts();
-    }
-}
+void spinlock_lock(spinlock_t* lock);
+void spinlock_unlock(spinlock_t* lock);
+void spinlock_lock_nodw(nodw_spinlock_t* lock);
+void spinlock_unlock_nodw(nodw_spinlock_t* lock);
+uint64_t spinlock_lock_noint(noint_spinlock_t* lock);
+void spinlock_unlock_noint(noint_spinlock_t* lock, uint64_t interrupt_state);

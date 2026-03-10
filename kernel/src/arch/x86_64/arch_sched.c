@@ -46,8 +46,7 @@ extern void __userspace_init_fred();
 
 void sched_preempt_handler(interrupt_frame_t* frame) {
     (void) frame;
-    lapic_eoi();
-    sched_yield();
+    CPU_LOCAL_EXCHANGE(preempt_data.preempt_pending, true);
 }
 
 

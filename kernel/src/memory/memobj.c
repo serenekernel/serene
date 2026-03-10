@@ -9,7 +9,7 @@
 
 static uint64_t next_memobj_id = 1;
 static memobj_t* memobj_list_head = NULL;
-static spinlock_t memobj_lock = 0;
+static nodw_spinlock_t memobj_lock = SPINLOCK_INIT;
 
 void memobj_init(void) {
     memobj_list_head = NULL;
@@ -59,7 +59,7 @@ memobj_t* memobj_create(size_t size, memobj_perms_t perms) {
         memset((void*) virt, 0, PAGE_SIZE_DEFAULT);
     }
 
-    uint64_t __spinflags = spinlock_critical_lock(&memobj_lock);
+    spinlock_lock_nodw(&memobj_lock);
     memobj->id = next_memobj_id++;
     memobj->size = aligned_size;
     memobj->page_count = page_count;
@@ -75,7 +75,7 @@ memobj_t* memobj_create(size_t size, memobj_perms_t perms) {
     }
     memobj_list_head = memobj;
 
-    spinlock_critical_unlock(&memobj_lock, __spinflags);
+    spinlock_unlock_nodw(&memobj_lock);
 
 #if VERBOSE_LOGGING == 1
     printf("Created memobj id=%llu size=%zu pages=%zu perms=0x%x\n", memobj->id, memobj->size, memobj->page_count, memobj->max_perms);
@@ -88,12 +88,12 @@ void memobj_destroy(memobj_t* memobj) {
         return;
     }
 
-    uint64_t __spinflags = spinlock_critical_lock(&memobj_lock);
+    spinlock_lock_nodw(&memobj_lock);
 
     memobj->ref_count--;
 
     if(memobj->ref_count > 0) {
-        spinlock_critical_unlock(&memobj_lock, __spinflags);
+        spinlock_unlock_nodw(&memobj_lock);
         return;
     }
 
@@ -106,7 +106,7 @@ void memobj_destroy(memobj_t* memobj) {
         memobj->global_next->global_prev = memobj->global_prev;
     }
 
-    spinlock_critical_unlock(&memobj_lock, __spinflags);
+    spinlock_unlock_nodw(&memobj_lock);
 
     printf("Destroying memobj id=%llu\n", memobj->id);
 
@@ -123,9 +123,9 @@ void memobj_ref(memobj_t* memobj) {
         return;
     }
 
-    uint64_t __spinflags = spinlock_critical_lock(&memobj_lock);
+    spinlock_lock_nodw(&memobj_lock);
     memobj->ref_count++;
-    spinlock_critical_unlock(&memobj_lock, __spinflags);
+    spinlock_unlock_nodw(&memobj_lock);
 }
 
 void memobj_unref(memobj_t* memobj) {
@@ -224,17 +224,17 @@ bool memobj_unmap(vm_allocator_t* allocator, virt_addr_t vaddr) {
 }
 
 memobj_t* memobj_get_by_id(uint64_t id) {
-    uint64_t __spinflags = spinlock_critical_lock(&memobj_lock);
+    spinlock_lock_nodw(&memobj_lock);
 
     memobj_t* current = memobj_list_head;
     while(current) {
         if(current->id == id) {
-            spinlock_critical_unlock(&memobj_lock, __spinflags);
+            spinlock_unlock_nodw(&memobj_lock);
             return current;
         }
         current = current->global_next;
     }
 
-    spinlock_critical_unlock(&memobj_lock, __spinflags);
+    spinlock_unlock_nodw(&memobj_lock);
     return NULL;
 }

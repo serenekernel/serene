@@ -97,18 +97,37 @@ int snprintf(char* buffer, size_t bufsz, const char* fmt, ...) {
 
 static spinlock_t printf_lock = {};
 
-int vprintf(const char* fmt, va_list val) {
+int nl_vprintf(const char* fmt, va_list val) {
     char buffer[1024];
     const int rv = npf_vsnprintf(buffer, 1024, fmt, val);
-    uint64_t __spinlock_val = spinlock_critical_lock(&printf_lock);
     sink_debug(buffer);
     if(ft_ctx != NULL) {
         sink_flanterm(buffer);
     }
-    spinlock_critical_unlock(&printf_lock, __spinlock_val);
     return rv;
 }
 
+
+int nl_printf(const char* fmt, ...) {
+    va_list val;
+    va_start(val, fmt);
+    const int rv = nl_vprintf(fmt, val);
+    va_end(val);
+    return rv;
+}
+
+
+int vprintf(const char* fmt, va_list val) {
+    char buffer[1024];
+    const int rv = npf_vsnprintf(buffer, 1024, fmt, val);
+    spinlock_lock(&printf_lock);
+    sink_debug(buffer);
+    if(ft_ctx != NULL) {
+        sink_flanterm(buffer);
+    }
+    spinlock_unlock(&printf_lock);
+    return rv;
+}
 
 int printf(const char* fmt, ...) {
     va_list val;
