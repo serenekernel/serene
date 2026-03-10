@@ -31,64 +31,104 @@ void idle_thread() {
     }
 }
 
+static void rq_enqueue(scheduler_t* sched, thread_t* thread) {
+    thread->sched_next = nullptr;
+    if(sched->run_queue_tail != nullptr) {
+        sched->run_queue_tail->sched_next = (struct thread*) thread;
+    } else {
+        sched->run_queue_head = thread;
+    }
+    sched->run_queue_tail = thread;
+}
+
+static thread_t* rq_dequeue(scheduler_t* sched) {
+    thread_t* thread = sched->run_queue_head;
+    if(thread == nullptr) return nullptr;
+    sched->run_queue_head = (thread_t*) thread->sched_next;
+    if(sched->run_queue_head == nullptr) {
+        sched->run_queue_tail = nullptr;
+    }
+    thread->sched_next = nullptr;
+    return thread;
+}
+
+static void rq_remove(scheduler_t* sched, thread_t* target) {
+    thread_t* prev = nullptr;
+    thread_t* cur = sched->run_queue_head;
+    while(cur != nullptr) {
+        if(cur == target) {
+            if(prev != nullptr) {
+                prev->sched_next = cur->sched_next;
+            } else {
+                sched->run_queue_head = (thread_t*) cur->sched_next;
+            }
+            if(sched->run_queue_tail == cur) {
+                sched->run_queue_tail = prev;
+            }
+            cur->sched_next = nullptr;
+            return;
+        }
+        prev = cur;
+        cur = (thread_t*) cur->sched_next;
+    }
+}
+
 void reaper_thread() {
     while(1) {
         spinlock_lock_nodw(&g_sched_lock);
+        scheduler_t* sched = CPU_LOCAL_READ(cpu_scheduler);
+
         {
-            thread_t* prev = nullptr;
-            thread_t* current = CPU_LOCAL_READ(cpu_scheduler)->thread_head;
+            uint32_t pass_remaining = 0;
+            for(thread_t* t = sched->run_queue_head; t != nullptr; t = (thread_t*) t->sched_next) {
+                pass_remaining++;
+            }
 
-            while(current != nullptr) {
-                if(current->thread_common.happy_to_die) {
-                    current->thread_common.status = THREAD_STATUS_TERMINATED;
+            bool restarted = false;
+            while(pass_remaining > 0) {
+                thread_t* t = rq_dequeue(sched);
+                if(t == nullptr) break;
+                pass_remaining--;
+
+                if(t->thread_common.happy_to_die) {
+                    t->thread_common.status = THREAD_STATUS_TERMINATED;
                 }
-                if(current->thread_common.status == THREAD_STATUS_TERMINATED) {
-                    thread_t* to_reap = current;
 
-                    if(to_reap->thread_common.process != nullptr) {
+                if(t->thread_common.status == THREAD_STATUS_TERMINATED) {
+                    if(t->thread_common.process != nullptr) {
 #if VERBOSE_LOGGING == 1
-                        printf("[REAPER] Found terminated thread TID %u PID %u (reaping=%p)\n", to_reap->thread_common.tid, to_reap->thread_common.process->pid, (void*) to_reap);
+                        printf("[REAPER] Found terminated thread TID %u PID %u (reaping=%p)\n", t->thread_common.tid, t->thread_common.process->pid, (void*) t);
 #endif
-                        to_reap->thread_common.process->thread_count--;
+                        t->thread_common.process->thread_count--;
                     } else {
 #if VERBOSE_LOGGING == 1
-                        printf("[REAPER] Found terminated thread TID %u PID <none> (reaping=%p)\n", to_reap->thread_common.tid, (void*) to_reap);
+                        printf("[REAPER] Found terminated thread TID %u PID <none> (reaping=%p)\n", t->thread_common.tid, (void*) t);
 #endif
                     }
-                    if(prev != nullptr) {
-                        prev->sched_next = current->sched_next;
-                        current = (thread_t*) current->sched_next;
-                    } else {
-                        CPU_LOCAL_READ(cpu_scheduler)->thread_head = (thread_t*) current->sched_next;
-                        current = CPU_LOCAL_READ(cpu_scheduler)->thread_head;
-                    }
 
-#if VERBOSE_LOGGING == 1
-                    printf("to_reap->kernel_rsp: 0x%llx\n", to_reap->kernel_rsp);
-                    printf("to_reap: 0x%llx\n", to_reap);
-#endif
-                    // Save pointers before releasing lock
-                    virt_addr_t kernel_rsp = to_reap->kernel_rsp;
-                    virt_addr_t thread_ptr = (virt_addr_t) to_reap;
-                    uint32_t tid = to_reap->thread_common.tid;
+                    virt_addr_t kernel_rsp = t->kernel_rsp;
+                    virt_addr_t thread_ptr = (virt_addr_t) t;
+                    uint32_t tid = t->thread_common.tid;
+                    void* fpu_area = t->fpu_area;
 
-                    // Release lock before calling vmm_free (which can trigger IPIs and wait for other CPUs)
                     spinlock_unlock_nodw(&g_sched_lock);
 
-                    fpu_free_area(to_reap->fpu_area);
+                    fpu_free_area(fpu_area);
                     vmm_free(&kernel_allocator, kernel_rsp);
                     vmm_free(&kernel_allocator, thread_ptr);
                     printf("Reaped thread TID %u\n", tid);
 
-                    // Re-acquire lock and restart scan from head since we released the lock
                     spinlock_lock_nodw(&g_sched_lock);
-                    break; // restart from head
+                    sched = CPU_LOCAL_READ(cpu_scheduler);
+                    restarted = true;
+                    break;
                 } else {
-                    prev = current;
-                    current = (thread_t*) current->sched_next;
+                    rq_enqueue(sched, t);
                 }
             }
+            (void) restarted;
         }
+
         {
             process_t* current = g_proc_head;
             while(current != nullptr) {
@@ -99,38 +139,35 @@ void reaper_thread() {
                     if(to_reap->prev != nullptr) {
                         to_reap->prev->next = to_reap->next;
                     }
-
                     if(to_reap->next != nullptr) {
                         to_reap->next->prev = to_reap->prev;
                     }
-
                     if(to_reap == g_proc_head) {
                         g_proc_head = (process_t*) to_reap->next;
                     }
 
                     current = (process_t*) to_reap->next;
 
-                    // Save pointers before releasing lock
                     vm_allocator_t* proc_addr_space = to_reap->address_space;
                     virt_addr_t proc_ptr = (virt_addr_t) to_reap;
-
-                    // Release lock before calling vmm_destory_allocator (which calls vmm_free and triggers IPIs)
+#if VERBOSE_LOGGING == 1
+                    uint32_t pid = to_reap->pid;
+#endif
                     spinlock_unlock_nodw(&g_sched_lock);
 
                     vmm_destory_allocator(proc_addr_space);
                     vmm_free(&kernel_allocator, proc_ptr);
 #if VERBOSE_LOGGING == 1
-                    uint32_t pid = to_reap->pid;
                     printf("Reaped process PID %u\n", pid);
 #endif
-                    // Re-acquire lock and restart from head
                     spinlock_lock_nodw(&g_sched_lock);
-                    break; // restart from head
+                    break;
                 } else {
                     current = (process_t*) current->next;
                 }
             }
         }
+
         spinlock_unlock_nodw(&g_sched_lock);
         sched_yield();
     }
@@ -145,7 +182,7 @@ void sched_start_thread(thread_t* thread) {
 }
 
 thread_t* __sched_get_thread(uint32_t tid) {
-    thread_t* current = CPU_LOCAL_READ(cpu_scheduler)->thread_head;
+    thread_t* current = CPU_LOCAL_READ(cpu_scheduler)->run_queue_head;
     while(current != nullptr) {
         if(current->thread_common.tid == tid) {
             return current;
@@ -154,7 +191,6 @@ thread_t* __sched_get_thread(uint32_t tid) {
     }
     return nullptr;
 }
-
 
 thread_t* sched_get_thread(uint32_t tid) {
     spinlock_lock_nodw(&g_sched_lock);
@@ -170,23 +206,23 @@ void sched_init_bsp() {
     sched_init_ap();
 
     g_reaper_thread = sched_thread_kernel_init((virt_addr_t) reaper_thread);
-    CPU_LOCAL_READ(cpu_scheduler)->thread_head->sched_next = (struct thread*) g_reaper_thread;
+    sched_add_thread(g_reaper_thread);
 }
 
 void sched_init_ap() {
     scheduler_t* sched = (scheduler_t*) vmm_alloc_object(&kernel_allocator, sizeof(scheduler_t));
 
     sched->idle_thread = sched_thread_kernel_init((virt_addr_t) idle_thread);
-    sched->idle_thread->thread_common.tid = 1;
+    sched->run_queue_head = nullptr;
+    sched->run_queue_tail = nullptr;
 
-    sched->thread_head = sched->idle_thread;
     printf("Scheduler initialized with idle thread TID %u\n", sched->idle_thread->thread_common.tid);
     CPU_LOCAL_WRITE(cpu_scheduler, sched);
     CPU_LOCAL_WRITE(current_thread, sched->idle_thread);
 }
 
 void sched_start() {
-    CPU_LOCAL_READ(cpu_scheduler)->idle_thread->thread_common.status = THREAD_STATUS_RUNNING;
+    CPU_LOCAL_READ(cpu_scheduler)->idle_thread->thread_common.status = THREAD_STATUS_READY;
     dw_enable();
     lapic_timer_oneshot_ms(10);
     sched_preempt_enable();
@@ -199,7 +235,6 @@ void __context_switch(thread_t* old_thread, thread_t* new_thread, thread_status_
 void __userspace_init();
 
 void sched_arch_init_thread(thread_t* thread, virt_addr_t entry_point);
-
 
 thread_t* sched_thread_common_init(vm_allocator_t* address_space, virt_addr_t entry_point, virt_addr_t thread_stack) {
     thread_t* thread = (thread_t*) vmm_alloc_object(&kernel_allocator, sizeof(thread_t));
@@ -237,34 +272,53 @@ thread_t* sched_thread_user_init(vm_allocator_t* address_space, virt_addr_t entr
     return thread;
 }
 
-thread_t* find_next_thread() {
-    thread_t* current_thread = CPU_LOCAL_READ(current_thread);
+static thread_t* find_next_thread() {
+    scheduler_t* sched = CPU_LOCAL_READ(cpu_scheduler);
 
-    while(true) {
-        current_thread = (thread_t*) current_thread->sched_next;
-        if(current_thread == nullptr) {
-            current_thread = CPU_LOCAL_READ(cpu_scheduler)->thread_head;
-        }
-        if(current_thread->thread_common.status == THREAD_STATUS_READY) {
-            if(current_thread->thread_common.happy_to_die) {
-                current_thread->thread_common.status = THREAD_STATUS_TERMINATED;
-                continue;
-            }
-            return current_thread;
-        }
-        if(current_thread->thread_common.status == THREAD_STATUS_BLOCKED) {
-            if(current_thread->thread_common.block_reason == THREAD_BLOCK_REASON_WAIT_HANDLE) {
-                handle_t wait_handle = current_thread->thread_common.status_data.blocked.wait_handle;
-                if(handle_has_data(wait_handle)) {
-                    current_thread->thread_common.status = THREAD_STATUS_READY;
-                    return current_thread;
-                }
-            }
-            continue;
-        }
+    uint32_t queue_len = 0;
+    for(thread_t* t = sched->run_queue_head; t != nullptr; t = (thread_t*) t->sched_next) {
+        queue_len++;
     }
 
-    __builtin_unreachable();
+    uint32_t scanned = 0;
+    while(scanned <= queue_len) {
+        thread_t* t = rq_dequeue(sched);
+        if(t == nullptr) break;
+
+        if(t->thread_common.happy_to_die) {
+            t->thread_common.status = THREAD_STATUS_TERMINATED;
+            queue_len--;
+            continue;
+        }
+
+        if(t->thread_common.status == THREAD_STATUS_TERMINATED) {
+            queue_len--;
+            continue;
+        }
+
+        if(t->thread_common.status == THREAD_STATUS_BLOCKED) {
+            if(t->thread_common.block_reason == THREAD_BLOCK_REASON_WAIT_HANDLE) {
+                handle_t wait_handle = t->thread_common.status_data.blocked.wait_handle;
+                if(handle_has_data(wait_handle)) {
+                    t->thread_common.status = THREAD_STATUS_READY;
+                    return t;
+                }
+            }
+            rq_enqueue(sched, t);
+            scanned++;
+            continue;
+        }
+
+        if(t->thread_common.status == THREAD_STATUS_RUNNING) {
+            rq_enqueue(sched, t);
+            scanned++;
+            continue;
+        }
+
+        return t;
+    }
+
+    return sched->idle_thread;
 }
 
 void sched_yield() {
@@ -277,7 +331,16 @@ void sched_yield_status(thread_status_t new_status) {
     disable_interrupts();
     assert(new_status != THREAD_STATUS_RUNNING && "Tried to make thread running from already running context");
     spinlock_lock_nodw(&g_sched_lock);
+
     thread_t* current_thread = CPU_LOCAL_READ(current_thread);
+    scheduler_t* sched = CPU_LOCAL_READ(cpu_scheduler);
+
+    if(current_thread != sched->idle_thread) {
+        if(new_status == THREAD_STATUS_READY) {
+            rq_enqueue(sched, current_thread);
+        }
+    }
+
     thread_t* next_thread = find_next_thread();
     assert(next_thread != nullptr && "No next thread found in sched_yield");
     assert(next_thread->thread_common.status == THREAD_STATUS_READY && "Thread is not ready...");
@@ -286,9 +349,9 @@ void sched_yield_status(thread_status_t new_status) {
 
     sched_arch_yield_prepare(current_thread, next_thread);
 
-    // we mark the new thread as running before dropping the lock to avoid a race
-    // we also do not change the old thread's status to blocked/ready until after we've switched from it's context
-    next_thread->thread_common.status = THREAD_STATUS_RUNNING;
+    if(next_thread != sched->idle_thread) {
+        next_thread->thread_common.status = THREAD_STATUS_RUNNING;
+    }
 
     CPU_LOCAL_WRITE(current_thread, next_thread);
     spinlock_unlock_nodw(&g_sched_lock);
@@ -306,60 +369,45 @@ void sched_yield_status(thread_status_t new_status) {
 
 void sched_add_thread(thread_t* thread) {
     spinlock_lock_nodw(&g_sched_lock);
-
-    if(CPU_LOCAL_READ(cpu_scheduler)->thread_head == nullptr) {
-        CPU_LOCAL_READ(cpu_scheduler)->thread_head = thread;
-        thread->sched_next = nullptr;
-    } else {
-        thread_t* current = CPU_LOCAL_READ(cpu_scheduler)->thread_head;
-        while(current->sched_next != nullptr) {
-            current = (thread_t*) current->sched_next;
-        }
-        current->sched_next = (struct thread*) thread;
-        thread->sched_next = nullptr;
-    }
-
+    rq_enqueue(CPU_LOCAL_READ(cpu_scheduler), thread);
     spinlock_unlock_nodw(&g_sched_lock);
 }
 
-void sched_wake_thread_id(uint32_t thread) {
+void sched_remove_thread(thread_t* thread) {
+    spinlock_lock_nodw(&g_sched_lock);
+    rq_remove(CPU_LOCAL_READ(cpu_scheduler), thread);
+    spinlock_unlock_nodw(&g_sched_lock);
+}
+
+void sched_wake_thread_id(uint32_t tid) {
     bool enabled = interrupts_enabled();
     if(enabled) disable_interrupts();
 
     spinlock_lock_nodw(&g_sched_lock);
 
-    thread_t* to_wake = __sched_get_thread(thread);
-    assert(to_wake != nullptr && "Tried to wake a nonexistant thread");
+    thread_t* to_wake = __sched_get_thread(tid);
+    assert(to_wake != nullptr && "Tried to wake a nonexistent thread");
     assert(to_wake->thread_common.status != THREAD_STATUS_TERMINATED && "Tried to wake a terminated thread");
+
     if(to_wake->thread_common.status == THREAD_STATUS_RUNNING) {
         spinlock_unlock_nodw(&g_sched_lock);
-        printf("Woke thread TID %u\n", to_wake->thread_common.tid);
+        printf("Woke thread TID %u (already running)\n", to_wake->thread_common.tid);
         if(enabled) enable_interrupts();
         return;
     }
-    to_wake->thread_common.status = THREAD_STATUS_READY;
+
+    if(to_wake->thread_common.status == THREAD_STATUS_BLOCKED) {
+        to_wake->thread_common.status = THREAD_STATUS_READY;
+        if(to_wake->sched_next == nullptr && CPU_LOCAL_READ(cpu_scheduler)->run_queue_tail != to_wake) {
+            rq_enqueue(CPU_LOCAL_READ(cpu_scheduler), to_wake);
+        }
+    } else {
+        to_wake->thread_common.status = THREAD_STATUS_READY;
+    }
+
     printf("Woke thread TID %u\n", to_wake->thread_common.tid);
     spinlock_unlock_nodw(&g_sched_lock);
     if(enabled) enable_interrupts();
-}
-
-void sched_remove_thread(thread_t* thread) {
-    spinlock_lock_nodw(&g_sched_lock);
-
-    if(CPU_LOCAL_READ(cpu_scheduler)->thread_head == thread) {
-        CPU_LOCAL_READ(cpu_scheduler)->thread_head = (thread_t*) thread->sched_next;
-    } else {
-        thread_t* current = CPU_LOCAL_READ(cpu_scheduler)->thread_head;
-        while(current != nullptr && current->sched_next != (struct thread*) thread) {
-            current = (thread_t*) current->sched_next;
-        }
-        if(current != nullptr) {
-            current->sched_next = thread->sched_next;
-        }
-    }
-
-    thread->sched_next = nullptr;
-    spinlock_unlock_nodw(&g_sched_lock);
 }
 
 void sched_preempt_disable() {
@@ -374,5 +422,5 @@ void sched_preempt_enable() {
     assert(count > 0 && "Preempt counter underflow in sched_preempt_enable");
     bool do_yield = count == 1 && CPU_LOCAL_EXCHANGE(preempt_data.preempt_pending, false);
     CPU_LOCAL_DEC(preempt_data.preempt_counter);
-    if(do_yield && interrupts_enabled()) sched_yield();
+    if(do_yield) sched_yield();
 }

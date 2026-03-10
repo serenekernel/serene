@@ -13,8 +13,12 @@ syscall_ret_t syscall_sys_wait_for(uint64_t handle_value) {
     handle_meta_t* handle_meta = handle_get(handle);
     thread_t* current_thread = CPU_LOCAL_READ(current_thread);
     SYSCALL_ASSERT_HANDLE(handle);
-
     SYSCALL_ASSERT_PARAM(handle_meta->owner_pid == current_thread->thread_common.process->pid);
+
+    if(handle_has_data(handle)) {
+        return SYSCALL_RET_VALUE(0);
+    }
+
     current_thread->thread_common.block_reason = THREAD_BLOCK_REASON_WAIT_HANDLE;
     current_thread->thread_common.status_data.blocked.wait_handle = handle;
     sched_yield_status(THREAD_STATUS_BLOCKED);

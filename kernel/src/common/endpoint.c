@@ -1,15 +1,18 @@
 #include "memory/vmm.h"
+
 #include <common/endpoint.h>
 #include <common/handle.h>
+#include <common/sched.h>
+#include <common/thread.h>
 
 bool __endpoint_has_data(handle_t handle, void* data) {
-    (void)handle;
+    (void) handle;
     endpoint_t* endpoint = (endpoint_t*) data;
     return endpoint->recv_head != endpoint->recv_tail;
 }
 
 bool __endpoint_free(handle_t handle, void* data) {
-    (void)handle;
+    (void) handle;
     endpoint_t* endpoint = (endpoint_t*) data;
     endpoint_destroy(endpoint);
     return true;
@@ -36,6 +39,17 @@ void endpoint_destroy(endpoint_t* endpoint) {
 bool endpoint_send(endpoint_t* endpoint, message_t* message) {
     endpoint->recv_queue[endpoint->recv_tail] = message;
     endpoint->recv_tail = (endpoint->recv_tail + 1) % endpoint->recv_queue_length;
+
+    // wake the owner of the endpint if it's waiting for a message on this endpoint
+    thread_t* owner = endpoint->owner;
+    if(owner->thread_common.status == THREAD_STATUS_BLOCKED && owner->thread_common.block_reason == THREAD_BLOCK_REASON_WAIT_HANDLE) {
+        handle_t wait_handle = owner->thread_common.status_data.blocked.wait_handle;
+        handle_meta_t* meta = handle_get(wait_handle);
+        if(meta && meta->valid && meta->type == HANDLE_TYPE_ENDPOINT && meta->data == (void*) endpoint) {
+            sched_wake_thread_id(owner->thread_common.tid);
+        }
+    }
+
     return true;
 }
 

@@ -4,9 +4,14 @@
 #include <arch/thread.h>
 #include <memory/vmm.h>
 
+// Per-CPU run queue.  Non-idle runnable threads are kept in a FIFO singly-linked
+// list (run_queue_head → … → run_queue_tail).  The idle thread is stored
+// separately and is never placed inside the queue; it is returned by
+// find_next_thread only when the queue contains no runnable thread.
 typedef struct {
     thread_t* idle_thread;
-    thread_t* thread_head;
+    thread_t* run_queue_head; // front of the run queue (next to be scheduled)
+    thread_t* run_queue_tail; // back of the run queue (last enqueued)
 } scheduler_t;
 
 void sched_init_bsp();
