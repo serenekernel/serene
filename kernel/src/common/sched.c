@@ -379,20 +379,16 @@ void sched_remove_thread(thread_t* thread) {
     spinlock_unlock_nodw(&g_sched_lock);
 }
 
-void sched_wake_thread_id(uint32_t tid) {
-    bool enabled = interrupts_enabled();
-    if(enabled) disable_interrupts();
-
+void sched_wake_thread(thread_t* to_wake) {
     spinlock_lock_nodw(&g_sched_lock);
 
-    thread_t* to_wake = __sched_get_thread(tid);
+    printf("Waking thread TID %u\n", to_wake->thread_common.tid);
     assert(to_wake != nullptr && "Tried to wake a nonexistent thread");
     assert(to_wake->thread_common.status != THREAD_STATUS_TERMINATED && "Tried to wake a terminated thread");
 
     if(to_wake->thread_common.status == THREAD_STATUS_RUNNING) {
         spinlock_unlock_nodw(&g_sched_lock);
         printf("Woke thread TID %u (already running)\n", to_wake->thread_common.tid);
-        if(enabled) enable_interrupts();
         return;
     }
 
@@ -407,7 +403,18 @@ void sched_wake_thread_id(uint32_t tid) {
 
     printf("Woke thread TID %u\n", to_wake->thread_common.tid);
     spinlock_unlock_nodw(&g_sched_lock);
-    if(enabled) enable_interrupts();
+}
+
+
+void sched_wake_thread_id(uint32_t tid) {
+    spinlock_lock_nodw(&g_sched_lock);
+
+    thread_t* to_wake = __sched_get_thread(tid);
+    assert(to_wake != nullptr && "Tried to wake a nonexistent thread");
+    assert(to_wake->thread_common.status != THREAD_STATUS_TERMINATED && "Tried to wake a terminated thread");
+
+    spinlock_unlock_nodw(&g_sched_lock);
+    sched_wake_thread(to_wake);
 }
 
 void sched_preempt_disable() {

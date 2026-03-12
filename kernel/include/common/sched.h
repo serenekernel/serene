@@ -27,6 +27,7 @@ thread_t* sched_get_thread(uint32_t tid);
 thread_t* sched_thread_kernel_init(virt_addr_t entry_point);
 thread_t* sched_thread_user_init(vm_allocator_t* address_space, virt_addr_t entry_point, virt_addr_t stack);
 void sched_start_thread(thread_t* thread);
+void sched_wake_thread(thread_t* to_wake);
 
 void sched_add_thread(thread_t* thread);
 void sched_remove_thread(thread_t* thread);

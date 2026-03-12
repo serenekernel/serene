@@ -46,7 +46,7 @@ bool endpoint_send(endpoint_t* endpoint, message_t* message) {
         handle_t wait_handle = owner->thread_common.status_data.blocked.wait_handle;
         handle_meta_t* meta = handle_get(wait_handle);
         if(meta && meta->valid && meta->type == HANDLE_TYPE_ENDPOINT && meta->data == (void*) endpoint) {
-            sched_wake_thread_id(owner->thread_common.tid);
+            sched_wake_thread(owner);
         }
     }
 
