@@ -98,7 +98,9 @@ void sched_arch_yield_prepare(thread_t* current_thread, thread_t* next_thread) {
 
     // if we aren't comming from a process or that process has no ioports then no need to clear the map it's already empty
     if(current_thread->thread_common.process != nullptr && current_thread->thread_common.process->io_perm_map_num != 0) {
-        tss_io_clear(CPU_LOCAL_READ(cpu_tss));
+        for(size_t i = 0; i < current_thread->thread_common.process->io_perm_map_num; i++) {
+            tss_io_deny_port(CPU_LOCAL_READ(cpu_tss), current_thread->thread_common.process->io_perm_map[i]);
+        }
     }
 
     if(next_thread->thread_common.process != nullptr) {
