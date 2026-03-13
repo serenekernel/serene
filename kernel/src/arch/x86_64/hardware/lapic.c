@@ -85,7 +85,13 @@ uintptr_t get_apic_base_address() {
 
 static void apic_enable_mode_bsp() {
     uint64_t msr = __rdmsr(IA32_APIC_BASE_MSR);
-    msr |= APIC_BASE_ENABLE;
+
+    if(!(msr & APIC_BASE_ENABLE)) {
+        msr |= APIC_BASE_ENABLE;
+        __wrmsr(IA32_APIC_BASE_MSR, msr);
+        msr = __rdmsr(IA32_APIC_BASE_MSR);
+    }
+
     x2apic_mode = __x2apic_supported();
 
     if(x2apic_mode) {
@@ -94,7 +100,6 @@ static void apic_enable_mode_bsp() {
         printf("enabling in x2apic mode\n");
         return;
     }
-    __wrmsr(IA32_APIC_BASE_MSR, msr);
 
     printf("x2apic mode not supported, using xapic mode\n");
 
