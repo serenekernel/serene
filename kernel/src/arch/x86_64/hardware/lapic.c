@@ -1,3 +1,4 @@
+#include "arch/hardware/pit.h"
 #include "common/ipi.h"
 #include "common/requests.h"
 
@@ -135,7 +136,7 @@ void lapic_write(uint32_t reg, uint32_t value) {
 
 uint64_t lapic_read64(uint32_t reg) {
     if(x2apic_mode) {
-        return (uint32_t) __rdmsr(IA32_X2APIC_BASE_MSR + (reg >> 4));
+        return __rdmsr(IA32_X2APIC_BASE_MSR + (reg >> 4));
     } else {
         // @todo: im sure this doesn't work for ALL registers
         uint64_t val = 0;
@@ -149,9 +150,10 @@ void lapic_write64(uint32_t reg, uint64_t value) {
     if(x2apic_mode) {
         __wrmsr(IA32_X2APIC_BASE_MSR + (reg >> 4), value);
     } else {
-        // @todo: im sure this doesn't work for ALL registers
-        mmio_write_u32(get_apic_base_address() + reg, (value & 0xFFFFFFFF));
+        // For the ICR, the high word (destination) must be written BEFORE the
+        // low word, because writing the low word causes the IPI to be dispatched.
         mmio_write_u32(get_apic_base_address() + (reg + 0x10), (value >> 32));
+        mmio_write_u32(get_apic_base_address() + reg, (value & 0xFFFFFFFF));
     }
 }
 
@@ -215,9 +217,7 @@ void lapic_init_ap() {
     printf("initialized in %s mode for lapic %d\n", x2apic_mode ? "x2APIC" : "xAPIC", lapic_get_id());
 }
 
-void lapic_send_raw_ipi(uint32_t apic_id) {
-    uint64_t icr = 0;
-
+void lapic_send_icr(uint32_t apic_id, uint64_t icr) {
     if(x2apic_mode) {
         // for x2apic, the destination field is bits 63-32
         icr |= (((uint64_t) apic_id) << 32);
@@ -225,14 +225,6 @@ void lapic_send_raw_ipi(uint32_t apic_id) {
         // for xapic, the destination field is bits 63-56
         icr |= (((uint64_t) apic_id) << 56);
     }
-
-    icr |= LAPIC_SHORTHAND_NONE;
-    icr |= LAPIC_TRIGGER_EDGE;
-    icr |= LAPIC_LEVEL_DEASSERT;
-    icr |= LAPIC_DESTMODE_PHYSICAL;
-    icr |= LAPIC_DELMODE_FIXED;
-    icr |= ipi_get_vector(); // vector
-
 
     if(x2apic_mode) {
         lapic_write64(LAPIC_X2APIC_ICR, icr);
@@ -245,6 +237,20 @@ void lapic_send_raw_ipi(uint32_t apic_id) {
     }
 }
 
+void lapic_send_raw_ipi(uint32_t apic_id) {
+    uint64_t icr = 0;
+
+    icr |= LAPIC_SHORTHAND_NONE;
+    icr |= LAPIC_TRIGGER_EDGE;
+    icr |= LAPIC_LEVEL_DEASSERT;
+    icr |= LAPIC_DESTMODE_PHYSICAL;
+    icr |= LAPIC_DELMODE_FIXED;
+    icr |= ipi_get_vector(); // vector
+
+
+    lapic_send_icr(apic_id, icr);
+}
+
 void lapic_broadcast_raw_ipi() {
     uint64_t icr = 0;
 
@@ -255,13 +261,5 @@ void lapic_broadcast_raw_ipi() {
     icr |= LAPIC_DELMODE_FIXED;
     icr |= ipi_get_vector(); // vector
 
-    if(x2apic_mode) {
-        lapic_write64(LAPIC_X2APIC_ICR, icr);
-    } else {
-        lapic_write64(LAPIC_ICR_LOW, icr);
-
-        while(lapic_read(LAPIC_ICR_LOW) & (1 << 12)) {
-            __builtin_ia32_pause();
-        }
-    }
+    lapic_send_icr(0, icr);
 }

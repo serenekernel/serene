@@ -21,7 +21,8 @@ void setup_fred_bsp() {
     __write_cr4(cr4);
     arch_memory_barrier();
 
-    __wrmsr(IA32_FRED_CONFIG, (uint64_t) x86_64_fred_ring3_entry_stub);
+    uint64_t msr = __rdmsr(IA32_FRED_CONFIG) & 0xFFF;
+    __wrmsr(IA32_FRED_CONFIG, ((uint64_t) x86_64_fred_ring3_entry_stub) | msr);
     __wrmsr(IA32_FRED_RSP0, (uint64_t) tss->rsp0);
     __wrmsr(IA32_FRED_RSP1, (uint64_t) tss->ist[1]); // #NMI
     __wrmsr(IA32_FRED_RSP2, (uint64_t) tss->ist[2]); // #DF
