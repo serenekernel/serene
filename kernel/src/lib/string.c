@@ -1,4 +1,5 @@
 #include "common/requests.h"
+#include "common/sched.h"
 
 #include <assert.h>
 #include <common/arch.h>
@@ -95,8 +96,7 @@ int strncmp(const char* s1, const char* s2, size_t n) {
 }
 
 void memcpy_um_um(vm_allocator_t* dest_alloc, vm_allocator_t* src_alloc, virt_addr_t dest, virt_addr_t src, size_t page_count) {
-    bool irq = interrupts_enabled();
-    if(irq) disable_interrupts();
+    sched_preempt_disable(); // it's prob safe to hard irq and process dw work but prempting will cause all sorts of stupid shit
 #ifdef __ARCH_X86_64__
     for(size_t i = 0; i < page_count; i++) {
         phys_addr_t dest_phys = vm_resolve(dest_alloc, dest + i * PAGE_SIZE_DEFAULT);
@@ -119,13 +119,12 @@ void memcpy_um_um(vm_allocator_t* dest_alloc, vm_allocator_t* src_alloc, virt_ad
     (void) n;
     assert(false); // @todo:
 #endif
-    if(irq) enable_interrupts();
+    sched_preempt_enable();
     return;
 }
 
 void memcpy_km_um(vm_allocator_t* dest_alloc, virt_addr_t dest, virt_addr_t src, size_t page_count) {
-    bool irq = interrupts_enabled();
-    if(irq) disable_interrupts();
+    sched_preempt_disable(); // it's prob safe to hard irq and process dw work but prempting will cause all sorts of stupid shit
 #ifdef __ARCH_X86_64__
     // verify all pages are mapped
     for(size_t i = 0; i < page_count; i++) {
@@ -144,17 +143,16 @@ void memcpy_km_um(vm_allocator_t* dest_alloc, virt_addr_t dest, virt_addr_t src,
     (void) n;
     assert(false); // @todo:
 #endif
-    if(irq) enable_interrupts();
+    sched_preempt_enable();
     return;
 }
 
 void memset_vm(vm_allocator_t* dest_alloc, virt_addr_t dest, int c, size_t page_count) {
-    bool irq = interrupts_enabled();
-    if(irq) disable_interrupts();
+    sched_preempt_disable(); // it's prob safe to hard irq and process dw work but prem
 
     if(dest_alloc->is_user == false) {
         memset((void*) dest, c, page_count * PAGE_SIZE_DEFAULT);
-        if(irq) enable_interrupts();
+        sched_preempt_enable();
         return;
     }
 
@@ -175,7 +173,7 @@ void memset_vm(vm_allocator_t* dest_alloc, virt_addr_t dest, int c, size_t page_
     (void) n;
     assert(false); // @todo:
 #endif
-    if(irq) enable_interrupts();
+    sched_preempt_enable();
     return;
 }
 
