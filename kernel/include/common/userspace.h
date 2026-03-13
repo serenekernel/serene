@@ -1,5 +1,6 @@
 #pragma once
 #include <assert.h>
+#include <common/process.h>
 #include <stdint.h>
 
 typedef enum : uint64_t {
@@ -17,6 +18,7 @@ typedef enum : uint64_t {
 
     // @todo: this 100% should not be a system call if we can help it
     SYS_CAP_INITRAMFS = 34,
+    SYS_MSG = 35,
 
     SYS_WAIT_FOR = 48,
 
@@ -95,3 +97,7 @@ const char* convert_syscall_error(syscall_err_t err);
             return SYSCALL_RET_ERROR(SYSCALL_ERR_INVALID_HANDLE);     \
         }                                                             \
     } while(0)
+
+
+bool validate_user_buffer(process_t* process, const void* ptr, size_t length);
+bool validate_user_buffer_current_process(const void* ptr, size_t length);

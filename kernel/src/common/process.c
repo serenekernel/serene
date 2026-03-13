@@ -13,7 +13,7 @@ extern nodw_spinlock_t g_sched_lock;
 process_t* process_create() {
     process_t* process = (process_t*) vmm_alloc_backed(&kernel_allocator, ALIGN_UP(sizeof(process_t), PAGE_SIZE_DEFAULT) / PAGE_SIZE_DEFAULT, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true);
     process->address_space = (vm_allocator_t*) vmm_alloc_backed(&kernel_allocator, 1, VM_ACCESS_KERNEL, VM_CACHE_NORMAL, VM_READ_WRITE, true);
-    vmm_user_init(process->address_space, 0x40000000, 0x80000000);
+    vmm_user_init(process->address_space, 0x1000, 0x80000000);
     process->pid = next_pid++;
 
     spinlock_lock_nodw(&g_sched_lock);

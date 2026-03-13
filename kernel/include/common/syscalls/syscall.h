@@ -35,3 +35,5 @@ syscall_ret_t syscall_sys_mem_alloc(uint64_t size, uint64_t align, uint64_t perm
 syscall_ret_t syscall_sys_mem_free(uint64_t addr);
 
 syscall_ret_t syscall_sys_set_fsbase(uint64_t fsbase);
+
+syscall_ret_t syscall_sys_msg(uint64_t msg_ptr, uint64_t msg_length);

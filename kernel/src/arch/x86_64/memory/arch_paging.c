@@ -243,7 +243,7 @@ phys_addr_t vm_resolve(vm_allocator_t* allocator, virt_addr_t virt_addr) {
     return page_entry & SMALL_PAGE_ADDRESS_MASK;
 }
 
-phys_addr_t vm_resolve_protections(vm_allocator_t* allocator, virt_addr_t virt_addr, vm_flags_t* out_protection) {
+phys_addr_t vm_resolve_protections(vm_allocator_t* allocator, virt_addr_t virt_addr, vm_flags_t* out_protection, vm_access_t* out_access) {
     spinlock_lock_nodw(&allocator->lock);
     uint64_t* pt = walk_if_exists(allocator, virt_addr);
     if(pt == NULL) {
@@ -253,9 +253,6 @@ phys_addr_t vm_resolve_protections(vm_allocator_t* allocator, virt_addr_t virt_a
 
     uint64_t page_entry = pt[(uint16_t) virt_to_index(virt_addr, PAGE_LEVEL_PT)];
     spinlock_unlock_nodw(&allocator->lock);
-    if(!(page_entry & PAGE_PRESENT_BIT)) {
-        return 0;
-    }
 
     vm_flags_t protections = VM_READ_ONLY;
     if(page_entry & PAGE_RW_BIT) {
@@ -270,6 +267,17 @@ phys_addr_t vm_resolve_protections(vm_allocator_t* allocator, virt_addr_t virt_a
         protections |= VM_GLOBAL;
     }
 
+    if(!(page_entry & PAGE_PRESENT_BIT)) {
+        protections |= VM_NON_PRESENT;
+    }
+
+    if(out_access) {
+        if(page_entry & PAGE_USER_BIT) {
+            *out_access = VM_ACCESS_USER;
+        } else {
+            *out_access = VM_ACCESS_KERNEL;
+        }
+    }
 
     if(out_protection) {
         *out_protection = protections;

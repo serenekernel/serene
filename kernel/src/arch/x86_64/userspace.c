@@ -65,6 +65,7 @@ const char* convert_syscall_number(syscall_nr_t nr) {
         case SYS_HANDLE_DUP:            return "SYS_HANDLE_DUP";
         case SYS_HANDLE_CLOSE:          return "SYS_HANDLE_CLOSE";
         case SYS_HANDLE_GET_OWNER:      return "SYS_HANDLE_GET_OWNER";
+        case SYS_MSG:                   return "SYS_MSG";
         case SYS_HANDLE_SET_OWNER:      return "SYS_HANDLE_SET_OWNER";
         case SYS_MEM_ALLOC:             return "SYS_MEM_ALLOC";
         case SYS_ENDPOINT_GET_OWNER:    return "SYS_ENDPOINT_GET_OWNER";
@@ -162,7 +163,11 @@ syscall_ret_t dispatch_syscall(uint64_t arg1, uint64_t arg2, uint64_t arg3, uint
     }
 
 #if SYSTRACE_ENABLED == 1
-    snprintf(systrace_buf + index, 1024 - index, " = %s (0x%llx)", convert_syscall_ret(ret_value), ret_value);
+    if(ret_value.is_error) {
+        snprintf(systrace_buf + index, 1024 - index, " = %s (0x%lld)", convert_syscall_ret(ret_value), ret_value);
+    } else {
+        snprintf(systrace_buf + index, 1024 - index, " = SUCCESS (0x%llx)", ret_value.value);
+    }
     printf("%s\n", systrace_buf);
 #endif
     return ret_value;
@@ -217,6 +222,6 @@ void userspace_init() {
 
     SYSCALL_DISPATCHER(SYS_MEM_ALLOC, syscall_sys_mem_alloc, 3);
     SYSCALL_DISPATCHER(SYS_MEM_FREE, syscall_sys_mem_free, 1);
-
+    SYSCALL_DISPATCHER(SYS_MSG, syscall_sys_msg, 2);
     SYSCALL_DISPATCHER(SYS_SET_FSBASE, syscall_sys_set_fsbase, 1);
 }
